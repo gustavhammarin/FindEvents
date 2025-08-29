@@ -9,12 +9,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
 
-public class EventsController : BaseApiController
+public class EventsController() : BaseApiController
 {
+    
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<PagedList<EventDto, DateTime?>>> GetEventsAsync([FromQuery]EventParams eventParams)
+    public async Task<ActionResult<PagedList<EventDto, DateTime?>>> GetEventsAsync([FromQuery] EventParams eventParams)
     {
-        return HandleResult(await Mediator.Send(new GetEventList.Query{Params = eventParams}));
+        return HandleResult(await Mediator.Send(new GetEventList.Query { Params = eventParams }));
     }
+
 }

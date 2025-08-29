@@ -1,4 +1,6 @@
+using API.Configuration;
 using API.Middleware;
+using API.Services;
 using Application.Activities.Core;
 using Application.Events.Queries;
 using Application.Interfaces;
@@ -36,6 +38,9 @@ builder.Services.AddMediatR(x =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IEventImporter, EventImporter>();
 builder.Services.AddTransient<ExceptionMiddleware>();
+builder.Services.Configure<ElasticSettings>(
+    builder.Configuration.GetSection("ElasticSettings"));
+builder.Services.AddScoped<IElasticService, ElasticService>();
 
 var app = builder.Build();
 
@@ -65,7 +70,7 @@ catch (Exception e)
     var logger = services.GetRequiredService<ILogger<Program>>();
     logger.LogError(e, "An error occurred while migrating the database.");
 }
-var importer = services.GetRequiredService<IEventImporter>();
-await importer.ImportAsync();
+/* var importer = services.GetRequiredService<IEventImporter>();
+await importer.ImportAsync(); */
 
 app.Run();
