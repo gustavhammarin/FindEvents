@@ -19,10 +19,11 @@ public static class EventMapper
             StartTime = dto.StartTime,
             EndTime = dto.EndTime,
             Location = dto.Location,
-            Municipality= dto.Municipality,
+            Municipality = dto.Municipality,
             Link = dto.Link,
             Source = dto.Source,
-            Category = dto.Category
+            Category = dto.Category,
+            Description = dto.Description
         };
     }
 }

@@ -17,6 +17,7 @@ public class EventDto
     public required string Link { get; set; }
     public required string Source { get; set; }
     public required string Category { get; set; }
+    public string? Description { get; set; }
     
 }
 

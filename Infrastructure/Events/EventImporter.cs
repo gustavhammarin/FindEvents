@@ -38,7 +38,9 @@ public class EventImporter : IEventImporter
             Municipality = e.Municipality,
             Link = e.Link,
             Source = e.Source,
-            Category = e.Category
+            Category = e.Category,
+            Description = e.Description
+            
         })
         .AsNoTracking()
         .ToListAsync();

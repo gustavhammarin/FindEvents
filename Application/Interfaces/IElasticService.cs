@@ -1,14 +1,15 @@
 using System;
-using API.Models;
 using Domain;
 
-namespace API.Services;
+namespace Application.Interfaces;
 
 public interface IElasticService
 {
     //create index
 
     Task CreateIndexIfNotExistsAsync();
+
+    Task<List<string>> SearchQuery(string search);
 
     
 

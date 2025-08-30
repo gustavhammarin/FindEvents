@@ -71,6 +71,6 @@ catch (Exception e)
     logger.LogError(e, "An error occurred while migrating the database.");
 }
 /* var importer = services.GetRequiredService<IEventImporter>();
-await importer.ImportAsync(); */
+await importer.ImportAsync();  */
 
 app.Run();

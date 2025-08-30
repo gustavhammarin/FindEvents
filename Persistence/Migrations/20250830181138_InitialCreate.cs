@@ -23,6 +23,7 @@ namespace Persistence.Migrations
                     StartTime = table.Column<TimeOnly>(type: "TEXT", nullable: true),
                     EndTime = table.Column<TimeOnly>(type: "TEXT", nullable: true),
                     Location = table.Column<string>(type: "TEXT", nullable: true),
+                    Description = table.Column<string>(type: "TEXT", nullable: true),
                     Municipality = table.Column<string>(type: "TEXT", nullable: false),
                     Link = table.Column<string>(type: "TEXT", nullable: false),
                     Source = table.Column<string>(type: "TEXT", nullable: false),

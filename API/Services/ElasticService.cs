@@ -1,10 +1,12 @@
 using System;
 using API.Configuration;
 using API.Models;
+using Application.Interfaces;
 using Domain;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Core.GetScriptContext;
 using Elastic.Clients.Elasticsearch.Inference;
+using Elastic.Clients.Elasticsearch.QueryDsl;
 using Elastic.Transport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -26,7 +28,8 @@ public class ElasticService : IElasticService
         var settings = new ElasticsearchClientSettings(new Uri(_elasticSettings.Url))
         .DefaultIndex(_elasticSettings.DefaultIndex)
         .Authentication(new BasicAuthentication("elastic", "Password"))
-        .ServerCertificateValidationCallback(CertificateValidations.AllowAll);
+        .ServerCertificateValidationCallback(CertificateValidations.AllowAll)
+        .DisableDirectStreaming();
 
         _client = new ElasticsearchClient(settings);
         _context = context;
@@ -47,10 +50,11 @@ public class ElasticService : IElasticService
         var searchDocs = await _context.Events.Select(e => new EventSearchDoc
         {
             Id = e.Id,
-            Title = e.Title,
-            Location = e.Location,
-            Municipality = e.Municipality,
-            Category = e.Category
+            Title = e.Title.ToLower(),
+            Location = e.Location.ToLower(),
+            Municipality = e.Municipality.ToLower(),
+            Category = e.Category.ToLower(),
+            Description = e.Description.ToLower(),
         })
         .ToListAsync();
 
@@ -68,4 +72,32 @@ public class ElasticService : IElasticService
 
     }
 
+public async Task<List<string>> SearchQuery(string search)
+{
+        var response = await _client.SearchAsync<EventSearchDoc>(s => s
+            .Indices(_elasticSettings.DefaultIndex)
+            .Size(100)
+            .Query(q => q
+                .MultiMatch(m => m
+                    .Query(search)
+                    .Fields("*")
+                    .Type(TextQueryType.BestFields)
+                    .Operator(Operator.Or)
+            )
+        )
+
+    );
+
+    if (!response.IsValidResponse)
+    {
+        _logger.LogError("Elasticsearch query failed. Term: {SearchTerm}, Error: {Error}",
+            search, response.ElasticsearchServerError?.Error?.Reason ?? "Unknown error");
+        return new List<string>();
+    }
+
+    _logger.LogInformation("Found {Count} results for search term: {SearchTerm}", 
+        response.Documents.Count, search);
+    
+    return response.Documents.Select(p => p.Id).ToList();
+}
 }

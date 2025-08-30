@@ -10,7 +10,7 @@ public class ScraperDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        var dbPath = @"C:\Users\gusta\Development\Reactivities\EventScraper\events.db";
+        var dbPath = @"C:\Users\gusta\dev\FindEvents\EventScraper\events.db";
 
         optionsBuilder.UseSqlite($"Data Source={dbPath}");
         Console.WriteLine($"📂 Ansluter till databas: {dbPath}");
