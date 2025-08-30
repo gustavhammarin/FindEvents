@@ -1,9 +1,11 @@
 using System;
 using Application.Activities.Core;
 using Application.Events.DTOs;
+using Application.Interfaces;
 using Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Persistence;
 
 namespace Application.Events.Queries;
@@ -15,7 +17,7 @@ public class GetEventList
     {
         public required EventParams Params { get; set; }
     }
-    public class Handler(AppDbContext context) : IRequestHandler<Query, Result<PagedList<EventDto, DateTime?>>>
+    public class Handler(AppDbContext context, IElasticService elasticService) : IRequestHandler<Query, Result<PagedList<EventDto, DateTime?>>>
     {
         public async Task<Result<PagedList<EventDto, DateTime?>>> Handle(Query request, CancellationToken cancellationToken)
         {
@@ -45,11 +47,19 @@ public class GetEventList
             {
                 var search = request.Params.Search.Trim().ToLower();
 
-                query = query.Where(x =>
-                    (!string.IsNullOrEmpty(x.Title) && x.Title.Trim().ToLower().Contains(search.ToLower())) ||
-                    (!string.IsNullOrEmpty(x.Location) && x.Location.Trim().ToLower().Contains(search.ToLower())) ||
-                    (!string.IsNullOrEmpty(x.Category) && x.Category.Trim().ToLower().Contains(search.ToLower()))
-                );
+                var eventIds = await elasticService.SearchQuery(search);
+
+                if (eventIds.Count == 0)
+                    return Result<PagedList<EventDto, DateTime?>>.Success(
+                        new PagedList<EventDto, DateTime?>
+                        {
+                            Items = [],
+                            NextCursor = null
+                        }
+                    );
+
+                query = query.Where(e => eventIds.Contains(e.Id));
+
             }
 
 

@@ -15,6 +15,7 @@ public class Event
     public TimeOnly? StartTime { get; set; }
     public TimeOnly? EndTime { get; set; }
     public string? Location { get; set; }
+    public string? Description { get; set; }
     public required string Municipality { get; set; }
     public required string Link { get; set; }
     public required string Source { get; set; }

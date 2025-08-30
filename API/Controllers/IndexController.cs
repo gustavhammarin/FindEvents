@@ -1,5 +1,6 @@
 using System;
 using API.Services;
+using Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

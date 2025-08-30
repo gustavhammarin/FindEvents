@@ -26,6 +26,9 @@ namespace Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("TEXT");
 
