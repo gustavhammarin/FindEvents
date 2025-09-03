@@ -38,7 +38,7 @@ public class ScraperPipeline
         }
 
         var results = await Task.WhenAll(tasks);
-        
+
         // Processa alla events
         await ProcessEventsAsync(results.SelectMany(r => r.Events));
 
@@ -72,20 +72,20 @@ public class ScraperPipeline
         CancellationToken cancellationToken)
     {
         var result = new ScraperResult { ScraperName = scraperType.Name };
-        
+
         try
         {
             _logger.LogInformation($"Starting scraper: {scraperType.Name}");
-            
+
             using var scope = _serviceProvider.CreateScope();
             var scraper = (BaseScraper)scope.ServiceProvider.GetRequiredService(scraperType);
-            
+
             var events = await scraper.RunAsync(cancellationToken);
-            
+
             result.Events = events;
             result.EventCount = events.Count();
             result.Success = true;
-            
+
             _logger.LogInformation($"Completed {scraperType.Name}: {result.EventCount} events");
         }
         catch (Exception ex)
@@ -94,22 +94,36 @@ public class ScraperPipeline
             result.ErrorMessage = ex.Message;
             _logger.LogError(ex, $"Error in scraper {scraperType.Name}");
         }
-        
+
         return result;
     }
 
     private async Task ProcessEventsAsync(IEnumerable<EventInfo> events)
     {
-        // Deduplisering
         var uniqueEvents = events
-            .GroupBy(e => new { e.Title, e.StartDate })
+            .GroupBy(e => new
+            {
+                Title = CleanTitle(e.Title),
+                e.StartDate
+            })
             .Select(g => g.First())
             .ToList();
 
-        // Spara till databas
         await _eventRepository.SaveEventsAsync(uniqueEvents);
-        
         _logger.LogInformation($"Saved {uniqueEvents.Count} unique events to database");
+    }
+
+    private string CleanTitle(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return "";
+
+        return title
+            .Trim()                           
+            .ToLowerInvariant()              
+            .Replace("  ", " ")              
+            .Replace("\n", " ")              
+            .Replace("\r", "")               
+            .Replace("\t", " ");             
     }
 
     private List<Type> GetAllScraperTypes()

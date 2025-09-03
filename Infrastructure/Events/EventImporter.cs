@@ -4,6 +4,7 @@ using Application.Events.Mappers;
 using Application.Interfaces;
 using Domain;
 using EventScraper;
+using EventScraper.models;
 using Microsoft.EntityFrameworkCore;
 using Persistence;
 
@@ -18,6 +19,20 @@ public class EventImporter : IEventImporter
         _appDbContext = appDbContext;
         _scraperDbContext = scraperDbContext;
     }
+
+    public async Task<List<EventInfo>> Deduplicate()
+    {
+        var events = await _scraperDbContext.Events.ToListAsync();
+
+        var uniqueEvents = events
+            .Where(e => !string.IsNullOrWhiteSpace(e.Link))
+            .GroupBy(e => e.Link, StringComparer.OrdinalIgnoreCase) 
+            .Select(g => g.First())
+            .ToList();
+
+        return uniqueEvents;
+    }
+
     public async Task ImportAsync()
     {
         using var tx = await _appDbContext.Database.BeginTransactionAsync();
@@ -25,7 +40,9 @@ public class EventImporter : IEventImporter
         _appDbContext.Events.RemoveRange(_appDbContext.Events);
         await _appDbContext.SaveChangesAsync();
 
-        var scrapedDtos = await _scraperDbContext.Events.Select(e => new EventDto
+        var uniqueEvents = await Deduplicate();
+
+        var scrapedDtos = uniqueEvents.Select(e => new EventDto
         {
             Id = e.Id,
             Title = e.Title,
@@ -40,10 +57,9 @@ public class EventImporter : IEventImporter
             Source = e.Source,
             Category = e.Category,
             Description = e.Description
-            
+
         })
-        .AsNoTracking()
-        .ToListAsync();
+        .ToList();
 
         var eventsToInsert = scrapedDtos.Select(EventMapper.MapToEventFromImport).ToList();
 

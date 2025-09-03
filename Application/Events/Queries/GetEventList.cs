@@ -23,9 +23,9 @@ public class GetEventList
         {
             var query = context.Events
                 .OrderBy(x => x.StartDate)
-                .Where(x => x.StartDate >= DateOnly.FromDateTime(request.Params.Cursor ?? request.Params.StartDate))
+                .Where(x => x.StartDate >= DateOnly.FromDateTime(request.Params.Cursor ?? request.Params.StartDate)) 
+                
                 .AsQueryable();
-
 
 
             var validCategories = new[]
@@ -51,7 +51,7 @@ public class GetEventList
 
                 if (eventIds.Count == 0)
                     return Result<PagedList<EventDto, DateTime?>>.Success(
-                        new PagedList<EventDto, DateTime?>
+                        new PagedList<EventDto,DateTime?>
                         {
                             Items = [],
                             NextCursor = null
@@ -86,6 +86,7 @@ public class GetEventList
             if (events.Count > request.Params.PageSize)
             {
                 nextCursor = events.Last().StartDate.Value.ToDateTime(TimeOnly.MinValue);
+                
                 events.RemoveAt(events.Count - 1);
             }
 

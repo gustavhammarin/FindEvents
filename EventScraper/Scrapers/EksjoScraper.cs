@@ -16,6 +16,7 @@ public class EksjoScraper(IHttpLoader loader, SitemapService sitemapService) : B
     private readonly SitemapService _sitemapService = sitemapService;
 
     private const string SitemapIndex = "https://visiteksjo.se/sitemapindex.xml";
+    private const string BaseUrl = "https://visiteksjo.se";
 
     protected override async Task<IEnumerable<string>> GetPageUrlsAsync()
     {
@@ -32,7 +33,7 @@ public class EksjoScraper(IHttpLoader loader, SitemapService sitemapService) : B
     {
         var builder = new EventDataBuilder();
 
-        builder.Source = "visiteksjo.se";
+        builder.Source = BaseUrl;
         builder.Municipality = "Eksjö";
 
         builder.Link = url;
@@ -78,24 +79,27 @@ public class EksjoScraper(IHttpLoader loader, SitemapService sitemapService) : B
             }
         }
 
-        var imageNode = doc.DocumentNode.QuerySelector("img[alt]");
+        var imageNode = doc.DocumentNode.QuerySelector("img[class*='sv-noborder'][srcset]");
+        var relativeUrl = imageNode?.GetAttributeValue("src", "");
 
-        if (imageNode != null)
+        if (string.IsNullOrEmpty(relativeUrl))
         {
-            var baseUrl = "https://visiteksjo.se";
-
-            var srcset = imageNode.GetAttributeValue("srcset", "");
-            var largestImage = srcset
-                .Split(',')
-                .Select(s => s.Trim().Split(' ')[0])
-                .LastOrDefault();
-
-            var imageUrl = !string.IsNullOrEmpty(largestImage)
-                ? baseUrl + largestImage
-                : baseUrl + imageNode.GetAttributeValue("src", "");
-
-            builder.ImageUrl = imageUrl;
+            var srcset = imageNode?.GetAttributeValue("srcset", "");
+            if (!string.IsNullOrEmpty(srcset))
+            {
+                // Plocka ut den största bilden (sista i srcset)
+                var srcsetEntries = srcset.Split(',');
+                var lastEntry = srcsetEntries.LastOrDefault()?.Trim();
+                if (lastEntry != null)
+                {
+                    // Ta första delen (före mellanslaget)
+                    relativeUrl = lastEntry.Split(' ')[0];
+                }
+            }
         }
+
+        var imageUrl = BaseUrl + relativeUrl;
+        builder.ImageUrl = imageUrl;
 
 
         var container = doc.DocumentNode;

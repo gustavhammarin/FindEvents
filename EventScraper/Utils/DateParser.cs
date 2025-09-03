@@ -67,11 +67,17 @@ namespace EventScraper.Utils
         }
 
         // Parserar "DD MMMM YYYY?" – kastar om formatet är helt fel
-        private static DateOnly ParseSingle(string text)
+        private static DateOnly? ParseSingle(string text)
         {
+            if (text.Contains('$'))
+            {
+                return null;
+            }
+
+            Console.WriteLine(text);
             var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
-                throw new FormatException($"Förväntar minst dag + månad i '{text}'");
+                throw new FormatException($"Förväntar minst dag + månad i '{text}'"); 
 
             // Dag
             if (!int.TryParse(tokens[0], out var day))
@@ -90,20 +96,20 @@ namespace EventScraper.Utils
         }
 
         // Parserar vänsterdel och använder månad/år från right om texten bara är "DD"
-        private static DateOnly ParseSingleWithDefaults(string text, DateOnly right)
+        private static DateOnly? ParseSingleWithDefaults(string text, DateOnly? right)
         {
             var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             // Om bara dag, använd month/year från right
             if (tokens.Length == 1 && int.TryParse(tokens[0], out var day))
-                return new DateOnly(right.Year, right.Month, day);
+                return new DateOnly(right?.Year ?? 0, right?.Month ?? 0, day);
 
             // Annars vanlig parsing och fyll på år om det saknas
             var date = ParseSingle(text);
-            if (date.Year == DateTime.Now.Year && text.Split(' ').Length < 3)
+            if (date?.Year == DateTime.Now.Year && text.Split(' ').Length < 3)
             {
                 // Om ParseSingle antog innevarande år men texten inte innehöll år,
                 // och right-delen har ett annat år, låna det
-                date = new DateOnly(right.Year, date.Month, date.Day);
+                date = new DateOnly(right?.Year ?? 0, date?.Month ?? 0, date?.Day ?? 0);
             }
             return date;
         }

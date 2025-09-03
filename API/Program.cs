@@ -46,7 +46,7 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
-app.UseCors(x => x.AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithOrigins("http://localhost:3000", "https://localhost:3000"));
+app.UseCors(x => x.AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithOrigins("http://localhost:3000", "https://localhost:3000", "https://localhost:5173", "http://localhost:5173", "http://127.0.0.1:5500", "https://127.0.0.1:5500"));
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -71,6 +71,6 @@ catch (Exception e)
     logger.LogError(e, "An error occurred while migrating the database.");
 }
 /* var importer = services.GetRequiredService<IEventImporter>();
-await importer.ImportAsync();  */
+await importer.ImportAsync();   */
 
 app.Run();
