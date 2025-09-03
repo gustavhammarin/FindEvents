@@ -10,7 +10,6 @@ public class TimeParsers
 
     public static (TimeOnly? Start, TimeOnly? End) TimeParser(string input)
     {
-        Console.WriteLine($"Raw time string: '{input}'");
 
         if (string.IsNullOrWhiteSpace(input))
             return (null, null);

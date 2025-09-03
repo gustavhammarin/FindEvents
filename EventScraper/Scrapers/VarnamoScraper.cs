@@ -62,7 +62,7 @@ public class VarnamoScraper(IHttpLoader loader, SitemapService sitemapService) :
         var paragraph = descriptionDiv?.ParentNode?.QuerySelectorAll("p")?.ElementAtOrDefault(0)?.InnerText?.Trim();
 
         builder.Description = paragraph;
-        builder.Municipality = "Värnamo";
+        builder.Municipality = "värnamo";
         builder.Source = BaseUrl;
 
         return builder.Build(title);

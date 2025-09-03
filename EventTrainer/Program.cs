@@ -119,7 +119,7 @@ class Program
                 "rave","klubbkväll","klubbnatt","club night","reggae","dancehall","latin",
                 "salsa night","bachata party","kizomba","afrobeat", "rockband", "melodifestivalen","afro house","world music",
                 "indie","punk","hardcore","hard rock","progrock","progg","electropop","synth",
-                "balearic","progressive","acoustic night","chillout","musikunderhållning"
+                "balearic","progressive","acoustic night","chillout","musikunderhållning", "orkester"
             },
 
             ["Teater & Show"] = new()
@@ -285,7 +285,7 @@ class Program
                 "spelkväll","filmkväll","bioafton","communityträff","temakväll","föräldrakväll",
                 "föräldracafé","kaffehäng","fredagshäng","torsdaghäng","nätverk","networking",
                 "affärsmingel","speed dating","datingkväll","afterparty","flirtkväll","festkväll",
-                "temafest","temafestkväll"
+                "temafest","temafestkväll", "bokcirkel"
             },
 
             ["Övrigt"] = new() 
