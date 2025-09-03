@@ -1,5 +1,6 @@
 using System;
 using Application.Activities.Core;
+using Application.Core;
 using Application.Events.DTOs;
 using Application.Interfaces;
 using Domain;
@@ -13,19 +14,27 @@ namespace Application.Events.Queries;
 public class GetEventList
 {
     private const int MaxPageSize = 50;
-    public class Query : IRequest<Result<PagedList<EventDto, DateTime?>>>
+    public class Query : IRequest<Result<PagedList<EventDto, EventCursor?>>>
     {
         public required EventParams Params { get; set; }
     }
-    public class Handler(AppDbContext context, IElasticService elasticService) : IRequestHandler<Query, Result<PagedList<EventDto, DateTime?>>>
+    public class Handler(AppDbContext context, IElasticService elasticService) : IRequestHandler<Query, Result<PagedList<EventDto, EventCursor?>>>
     {
-        public async Task<Result<PagedList<EventDto, DateTime?>>> Handle(Query request, CancellationToken cancellationToken)
+        public async Task<Result<PagedList<EventDto, EventCursor?>>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var query = context.Events
-                .OrderBy(x => x.StartDate)
-                .Where(x => x.StartDate >= DateOnly.FromDateTime(request.Params.Cursor ?? request.Params.StartDate)) 
-                
-                .AsQueryable();
+            var query = context.Events.AsQueryable();
+
+            if (request.Params.Cursor != null)
+            {
+                var cursor = request.Params.Cursor;
+                query = query.Where(e => e.StartDate > cursor.StartDate ||
+                (e.StartDate == cursor.StartDate && e.Id == cursor.Id));
+            }
+            else
+            {
+                var startDate = request.Params.StartDate;
+                query = query.Where(x => x.StartDate >= startDate);
+            }
 
 
             var validCategories = new[]
@@ -50,8 +59,8 @@ public class GetEventList
                 var eventIds = await elasticService.SearchQuery(search);
 
                 if (eventIds.Count == 0)
-                    return Result<PagedList<EventDto, DateTime?>>.Success(
-                        new PagedList<EventDto,DateTime?>
+                    return Result<PagedList<EventDto, EventCursor?>>.Success(
+                        new PagedList<EventDto,EventCursor?>
                         {
                             Items = [],
                             NextCursor = null
@@ -64,6 +73,8 @@ public class GetEventList
 
 
             var events = await query
+            .OrderBy(x => x.StartDate)
+            .ThenBy(x => x.Id)
             .Take(request.Params.PageSize + 1)
             .Select(x => new EventDto
             {
@@ -82,16 +93,20 @@ public class GetEventList
 
             }).ToListAsync(cancellationToken);
 
-            DateTime? nextCursor = null;
+            EventCursor? nextCursor = null;
             if (events.Count > request.Params.PageSize)
             {
-                nextCursor = events.Last().StartDate.Value.ToDateTime(TimeOnly.MinValue);
-                
+                var lastEvent = events[events.Count - 1];
+                nextCursor = new EventCursor
+                {
+                    StartDate = lastEvent.StartDate ?? DateOnly.MinValue,
+                    Id = lastEvent.Id
+                };
                 events.RemoveAt(events.Count - 1);
             }
 
-            return Result<PagedList<EventDto, DateTime?>>.Success(
-                new PagedList<EventDto, DateTime?>
+            return Result<PagedList<EventDto, EventCursor?>>.Success(
+                new PagedList<EventDto, EventCursor?>
                 {
                     Items = events,
                     NextCursor = nextCursor
