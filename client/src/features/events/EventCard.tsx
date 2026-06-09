@@ -1,86 +1,78 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, MapPin, ExternalLink } from "lucide-react";
+import { Calendar, MapPin } from "lucide-react";
 
 type Props = {
-    event: FetchedEvent;
-}
+  event: FetchedEvent;
+};
 
 const BASE_URL = "https://jkpg.com";
 
 export default function EventCard({ event }: Props) {
-    const fullLink = event.link?.startsWith("http") ? event.link : `${BASE_URL}${event.link}`;
-    
-    // Clean up time text by removing extra whitespace and newlines
-    const cleanTime = event.startTime?.replace(/\s+/g, ' ').trim() || 'Tid ej angiven';
-    
-    // Handle missing or placeholder images
-    const hasValidImage = event.imageUrl && !event.imageUrl.includes('placeholder');
-    
-    return (
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] h-full flex flex-col p-0 overflow-hidden">
-            <CardHeader className="p-0 relative">
-                <a href={fullLink} target="_blank" rel="noopener noreferrer" className="block">
-                    {hasValidImage ? (
-                        <img
-                            src={event.imageUrl}
-                            alt={event.title}
-                            className=" object-cover w-full h-48  "
-                            onError={(e) => {
-                                // Fallback if image fails to load
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                        />
-                    ) : null}
-                    
-                    {/* Fallback placeholder */}
-                    <div className={`${hasValidImage ? 'hidden' : 'flex'} items-center justify-center h-48 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg`}>
-                        <div className="text-center">
-                            <Calendar className="w-12 h-12 text-indigo-400 mx-auto mb-1" />
-                            <p className="text-sm text-indigo-600 font-medium">Evenemang</p>
-                        </div>
-                    </div>
-                    
-                    {/* External link indicator */}
-                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ExternalLink className="w-4 h-4 text-gray-600" />
-                    </div>
-                </a>
-            </CardHeader>
-            
-            <CardContent className="p-2 flex-1 flex flex-col">
-                <CardTitle className="text-lg mb-1 line-clamp-2 leading-tight">
-                    {event.title || 'Evenemang utan titel'}
-                </CardTitle>
-                
-                <div className="space-y-2 flex-1">
-                    <div className="flex items-start gap-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500" />
-                        <span>{event.startDate || 'Datum ej angivet'}</span>
-                    </div>
-                    
-                    <div className="flex items-start gap-2 text-sm text-gray-600">
-                        <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500" />
-                        <span className="break-words">{cleanTime}</span>
-                    </div>
-                    
-                    {event.location && (
-                        <div className="flex items-start gap-2 text-sm text-gray-600">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500" />
-                            <span className="break-words">{event.location}</span>
-                        </div>
-                    )}
-                </div>
-                
-                {/* Category badge */}
-                {event.category && (
-                    <div className="mt-1 pt-1 border-t border-gray-100">
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full capitalize">
-                            {event.category}
-                        </span>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    )
+  const fullLink = event.link?.startsWith("http")
+    ? event.link
+    : `${BASE_URL}${event.link}`;
+
+  const hasValidImage =
+    !!event.imageUrl &&
+    !event.imageUrl.includes("placeholder") &&
+    event.imageUrl.startsWith("http");
+
+  const formattedDate = event.startDate
+    ? new Date(event.startDate).toLocaleDateString("sv-SE", {
+        day: "numeric",
+        month: "short",
+      })
+    : null;
+
+  return (
+    <a
+      href={fullLink}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 h-full"
+    >
+      {/* Fixed-ratio image */}
+      <div className="relative w-full aspect-[16/9] bg-gray-100 overflow-hidden flex-shrink-0">
+        {hasValidImage ? (
+          <img
+            src={event.imageUrl}
+            alt={event.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Calendar className="w-8 h-8 text-gray-300" />
+          </div>
+        )}
+        {event.category && (
+          <span className="absolute bottom-2 left-2 text-xs font-medium px-2 py-0.5 rounded-full bg-black/50 text-white backdrop-blur-sm leading-tight">
+            {event.category}
+          </span>
+        )}
+      </div>
+
+      {/* Content — fixed min-height so all cards same size */}
+      <div className="p-3 flex flex-col gap-1 flex-1">
+        <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug flex-1">
+          {event.title}
+        </p>
+        <div className="flex flex-col gap-0.5 pt-2">
+          {formattedDate && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Calendar className="w-3 h-3 flex-shrink-0" />
+              <span>{formattedDate}</span>
+            </div>
+          )}
+          {event.location && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <MapPin className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{event.location}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </a>
+  );
 }

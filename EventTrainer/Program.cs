@@ -1,11 +1,11 @@
 ﻿using Microsoft.ML;
 using Microsoft.ML.Data;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using EventScraper;
-using EventScraper.models;
+using Persistence;
 
 public class EventInput
 {
@@ -298,7 +298,10 @@ class Program
 
 
         // 2) Läs in, matcha kategori och markera alla events som Modified
-        using var db = new ScraperDbContext();
+        var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Port=5432;Database=findevents;Username=postgres;Password=changeme123")
+            .Options;
+        using var db = new AppDbContext(dbOptions);
         var events = db.Events.ToList();
         int updatedCount = 0;
 
@@ -309,7 +312,7 @@ class Program
             {
                 Console.WriteLine($"🔄 [{ev.Id}] » \"{ev.Title}\" → {detected} (föregående: {ev.Category})");
                 ev.Category = detected;
-                db.Entry(ev).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+                db.Entry(ev).State = EntityState.Modified;
                 updatedCount++;
             }
         }

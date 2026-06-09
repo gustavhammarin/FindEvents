@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Domain;
 
 [Index(nameof(StartDate))]
+[Index(nameof(Link), IsUnique = true)]
 public class Event
 {
 

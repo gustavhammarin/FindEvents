@@ -24,16 +24,14 @@ public class GetEventList
         {
             var query = context.Events.AsQueryable();
 
+            var startDate = request.Params.StartDate;
+            query = query.Where(x => x.StartDate >= startDate);
+
             if (request.Params.Cursor != null)
             {
-                var cursor = request.Params.Cursor;
-                query = query.Where(e => e.StartDate > cursor.StartDate ||
-                (e.StartDate == cursor.StartDate && e.Id == cursor.Id));
-            }
-            else
-            {
-                var startDate = request.Params.StartDate;
-                query = query.Where(x => x.StartDate >= startDate);
+                var cursorDate = request.Params.Cursor.StartDate;
+                var cursorId = request.Params.Cursor.Id;
+                query = query.Where(e => e.StartDate > cursorDate);
             }
 
 
@@ -55,20 +53,19 @@ public class GetEventList
             if (!string.IsNullOrWhiteSpace(request.Params.Search))
             {
                 var search = request.Params.Search.Trim().ToLower();
-
                 var eventIds = await elasticService.SearchQuery(search);
 
-                if (eventIds.Count == 0)
-                    return Result<PagedList<EventDto, EventCursor?>>.Success(
-                        new PagedList<EventDto,EventCursor?>
-                        {
-                            Items = [],
-                            NextCursor = null
-                        }
-                    );
-
-                query = query.Where(e => eventIds.Contains(e.Id));
-
+                if (eventIds.Count > 0)
+                {
+                    query = query.Where(e => eventIds.Contains(e.Id));
+                }
+                else
+                {
+                    query = query.Where(e =>
+                        EF.Functions.Like(e.Title.ToLower(), $"%{search}%") ||
+                        (e.Description != null && EF.Functions.Like(e.Description.ToLower(), $"%{search}%")) ||
+                        EF.Functions.Like(e.Location.ToLower(), $"%{search}%"));
+                }
             }
 
 
