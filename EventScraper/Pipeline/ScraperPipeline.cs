@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using EventScraper.Interfaces;
 using EventScraper.models;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,19 +6,15 @@ using Microsoft.Extensions.Logging;
 public class ScraperPipeline
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IFileEventRepository _fileEventRepository;
     private readonly IEventRepository _eventRepository;
     private readonly ILogger<ScraperPipeline> _logger;
-    private readonly ConcurrentBag<EventInfo> _allEvents = new();
 
     public ScraperPipeline(
         IServiceProvider serviceProvider,
-        IFileEventRepository fileEventRepository,
         IEventRepository eventRepository,
         ILogger<ScraperPipeline> logger)
     {
         _serviceProvider = serviceProvider;
-        _fileEventRepository = fileEventRepository;
         _eventRepository = eventRepository;
         _logger = logger;
     }

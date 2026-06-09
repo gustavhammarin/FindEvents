@@ -1,7 +1,12 @@
 
+type EventCursor = {
+  startDate: string
+  id: string
+}
+
 type PagedList<T, TCursor> = {
   items: T[],
-  nextCursor: TCursor 
+  nextCursor: TCursor
 }
 
 type FetchedEvent = {

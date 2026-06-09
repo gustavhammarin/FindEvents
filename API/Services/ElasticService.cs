@@ -16,7 +16,7 @@ namespace API.Services;
 
 public class ElasticService : IElasticService
 {
-    private readonly ElasticsearchClient _client;
+    private readonly ElasticsearchClient? _client;
     private readonly ElasticSettings _elasticSettings;
     private readonly AppDbContext _context;
     private readonly ILogger<ElasticService> _logger;
@@ -24,6 +24,10 @@ public class ElasticService : IElasticService
     public ElasticService(IOptions<ElasticSettings> optionsMonitor, AppDbContext context, ILogger<ElasticService> logger)
     {
         _elasticSettings = optionsMonitor.Value;
+        _context = context;
+        _logger = logger;
+
+        if (string.IsNullOrWhiteSpace(_elasticSettings.Url)) return;
 
         var settings = new ElasticsearchClientSettings(new Uri(_elasticSettings.Url))
         .DefaultIndex(_elasticSettings.DefaultIndex)
@@ -32,8 +36,6 @@ public class ElasticService : IElasticService
         .DisableDirectStreaming();
 
         _client = new ElasticsearchClient(settings);
-        _context = context;
-        _logger = logger;
     }
     public async Task CreateIndexIfNotExistsAsync()
     {
@@ -74,6 +76,8 @@ public class ElasticService : IElasticService
 
 public async Task<List<string>> SearchQuery(string search)
 {
+        if (_client is null) return [];
+
         var response = await _client.SearchAsync<EventSearchDoc>(s => s
             .Indices(_elasticSettings.DefaultIndex)
             .Size(100)

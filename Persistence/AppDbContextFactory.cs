@@ -18,7 +18,7 @@ namespace Persistence;
             var connStr = config.GetConnectionString("DefaultConnection");
 
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-            optionsBuilder.UseSqlite(connStr);
+            optionsBuilder.UseNpgsql(connStr);
 
             return new AppDbContext(optionsBuilder.Options);
         }
