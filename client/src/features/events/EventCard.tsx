@@ -65,10 +65,10 @@ export default function EventCard({ event }: Props) {
               <span>{formattedDate}</span>
             </div>
           )}
-          {event.location && (
+          {(event.location || event.municipality) && (
             <div className="flex items-center gap-1.5 text-xs text-gray-400">
               <MapPin className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{event.location}</span>
+              <span className="truncate">{event.location || event.municipality}</span>
             </div>
           )}
         </div>
