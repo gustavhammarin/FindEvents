@@ -1,3 +1,4 @@
+using EventScraper.Categorization;
 using EventScraper.Interfaces;
 using EventScraper.models;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,55 +7,73 @@ using Microsoft.Extensions.Logging;
 public class ScraperPipeline
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IEventRepository _eventRepository;
     private readonly ILogger<ScraperPipeline> _logger;
 
     public ScraperPipeline(
         IServiceProvider serviceProvider,
-        IEventRepository eventRepository,
         ILogger<ScraperPipeline> logger)
     {
         _serviceProvider = serviceProvider;
-        _eventRepository = eventRepository;
         _logger = logger;
     }
 
-    public async Task<PipelineResult> RunAllScrapersAsync(
+    public async Task<PipelineResult> RunAllAsync(
         int maxConcurrency = 5,
-        CancellationToken cancellationToken = default)
+        CancellationToken ct = default)
     {
-        var scraperTypes = GetAllScraperTypes();
-        var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-        var tasks = new List<Task<ScraperResult>>();
+        int sourceCount;
+        using (var countScope = _serviceProvider.CreateScope())
+            sourceCount = countScope.ServiceProvider.GetServices<IEventSource>().Count();
 
-        foreach (var scraperType in scraperTypes)
-        {
-            tasks.Add(RunScraperWithThrottlingAsync(scraperType, semaphore, cancellationToken));
-        }
+        _logger.LogInformation("Starting pipeline with {Count} sources", sourceCount);
 
+        var semaphore = new SemaphoreSlim(maxConcurrency);
+        var tasks = Enumerable.Range(0, sourceCount).Select(i => RunSourceAsync(i, semaphore, ct));
         var results = await Task.WhenAll(tasks);
 
-        // Processa alla events
-        await ProcessEventsAsync(results.SelectMany(r => r.Events));
+        var totalEvents = results.Sum(r => r.EventCount);
+        _logger.LogInformation("Pipeline done: {Events} events from {Sources}/{Total} sources",
+            totalEvents, results.Count(r => r.Success), sourceCount);
 
         return new PipelineResult
         {
-            TotalScrapers = scraperTypes.Count,
+            TotalScrapers = sourceCount,
             SuccessfulScrapers = results.Count(r => r.Success),
-            TotalEvents = results.Sum(r => r.EventCount),
+            TotalEvents = totalEvents,
             ScraperResults = results
         };
     }
 
-    private async Task<ScraperResult> RunScraperWithThrottlingAsync(
-        Type scraperType,
+    private async Task<ScraperResult> RunSourceAsync(
+        int sourceIndex,
         SemaphoreSlim semaphore,
-        CancellationToken cancellationToken)
+        CancellationToken ct)
     {
-        await semaphore.WaitAsync(cancellationToken);
+        await semaphore.WaitAsync(ct);
+        // Each source gets its own scope so scoped dependencies (DbContext) aren't shared across threads
+        using var scope = _serviceProvider.CreateScope();
+        var source = scope.ServiceProvider.GetServices<IEventSource>().ElementAt(sourceIndex);
         try
         {
-            return await RunSingleScraperAsync(scraperType, cancellationToken);
+            _logger.LogInformation("Fetching {Source}", source.Name);
+            var events = await source.FetchAsync(ct);
+            var list = Deduplicate(events);
+
+            // Structured sources don't go through the LLM — fill their category here
+            foreach (var ev in list.Where(e => string.IsNullOrWhiteSpace(e.Category)))
+                ev.Category = EventCategorizer.Categorize(ev.Title, ev.Description);
+
+            // Save per source so a crash/restart mid-run never loses completed LLM work
+            var repository = scope.ServiceProvider.GetRequiredService<IEventRepository>();
+            await repository.SaveEventsAsync(list);
+
+            _logger.LogInformation("{Source}: {Count} events saved", source.Name, list.Count);
+            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = list.Count, Events = list };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in source {Source}", source.Name);
+            return new ScraperResult { ScraperName = source.Name, Success = false, ErrorMessage = ex.Message };
         }
         finally
         {
@@ -62,70 +81,10 @@ public class ScraperPipeline
         }
     }
 
-    private async Task<ScraperResult> RunSingleScraperAsync(
-        Type scraperType,
-        CancellationToken cancellationToken)
-    {
-        var result = new ScraperResult { ScraperName = scraperType.Name };
-
-        try
-        {
-            _logger.LogInformation($"Starting scraper: {scraperType.Name}");
-
-            using var scope = _serviceProvider.CreateScope();
-            var scraper = (BaseScraper)scope.ServiceProvider.GetRequiredService(scraperType);
-
-            var events = await scraper.RunAsync(cancellationToken);
-
-            result.Events = events;
-            result.EventCount = events.Count();
-            result.Success = true;
-
-            _logger.LogInformation($"Completed {scraperType.Name}: {result.EventCount} events");
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            _logger.LogError(ex, $"Error in scraper {scraperType.Name}");
-        }
-
-        return result;
-    }
-
-    private async Task ProcessEventsAsync(IEnumerable<EventInfo> events)
-    {
-        var uniqueEvents = events
-            .GroupBy(e => new
-            {
-                Title = CleanTitle(e.Title),
-                e.StartDate
-            })
+    private static List<EventInfo> Deduplicate(IEnumerable<EventInfo> events) =>
+        events
+            .Where(e => !string.IsNullOrEmpty(e.Link))
+            .GroupBy(e => (Title: e.Title.Trim().ToLowerInvariant(), e.StartDate))
             .Select(g => g.First())
             .ToList();
-
-        await _eventRepository.SaveEventsAsync(uniqueEvents);
-        _logger.LogInformation($"Saved {uniqueEvents.Count} unique events to database");
-    }
-
-    private string CleanTitle(string title)
-    {
-        if (string.IsNullOrEmpty(title)) return "";
-
-        return title
-            .Trim()                           
-            .ToLowerInvariant()              
-            .Replace("  ", " ")              
-            .Replace("\n", " ")              
-            .Replace("\r", "")               
-            .Replace("\t", " ");             
-    }
-
-    private List<Type> GetAllScraperTypes()
-    {
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.IsSubclassOf(typeof(BaseScraper)) && !type.IsAbstract)
-            .ToList();
-    }
 }
