@@ -485,3 +485,7 @@ API/reactivities.db
 .idea/.idea.Reactivities/.idea/.gitignore
 API/reactivities.db-wal
 API/reactivities.db-shm
+
+# Local secrets — use the .example templates instead
+.env
+API/appsettings.Development.json
