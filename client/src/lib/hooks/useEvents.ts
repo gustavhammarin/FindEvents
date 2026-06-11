@@ -4,11 +4,11 @@ import { useStore } from "./useStore";
 import { format } from "date-fns";
 
 export const useEvents = () => {
-    const { eventStore: { search, startDate } } = useStore();
+    const { eventStore: { search, startDate, category } } = useStore();
 
     const { data: eventsGroup, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage } =
         useInfiniteQuery<PagedList<FetchedEvent, EventCursor | null>>({
-            queryKey: ["events", search, startDate?.toISOString()],
+            queryKey: ["events", search, startDate?.toISOString(), category],
             queryFn: async ({ pageParam }) => {
                 const cursor = pageParam as EventCursor | null;
                 const response = await agent.get<PagedList<FetchedEvent, EventCursor | null>>("/events", {
@@ -18,6 +18,7 @@ export const useEvents = () => {
                         pageSize: 16,
                         search: search || null,
                         startDate: startDate ? format(startDate, "yyyy-MM-dd") : null,
+                        category: category || null,
                     }
                 });
                 return response.data;

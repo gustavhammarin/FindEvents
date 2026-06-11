@@ -39,6 +39,15 @@ public class AppEventRepository : IEventRepository
         await _context.SaveChangesAsync();
     }
 
+    public async Task<HashSet<string>> GetExistingLinksAsync(IEnumerable<string> links)
+    {
+        var list = links.ToList();
+        return await _context.Events
+            .Where(e => list.Contains(e.Link))
+            .Select(e => e.Link)
+            .ToHashSetAsync();
+    }
+
     private static Event MapToEvent(EventInfo e) => new()
     {
         Id = e.Id,
