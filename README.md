@@ -23,7 +23,6 @@ Domain/           Entity models
 Persistence/      EF Core DbContext + migrations
 Infrastructure/   Event repository
 EventScraper/     Scraper library: sources, LLM extraction, categorization
-EventTrainer/     Dev utility: keyword backfill of categories in DB
 Tests/            xunit tests
 client/           React frontend
 docker-compose.yaml
@@ -99,47 +98,21 @@ dotnet test Tests/Tests.csproj
 
 ## Configuration
 
-### `API/appsettings.Development.json`
+Secrets are kept out of git. Copy the templates and fill in your own values:
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=findevents;Username=postgres;Password=changeme123"
-  },
-  "ElasticSettings": {
-    "Url": "https://localhost:9200",
-    "DefaultIndex": "events"
-  },
-  "LlmSettings": {
-    "BaseUrl": "http://127.0.0.1:8000/v1",
-    "Model": "Qwen3.5-4B-MLX-4bit",
-    "ApiKey": "apikey"
-  },
-  "Scraper": {
-    "Enabled": true
-  }
-}
+```bash
+cp .env.example .env
+cp API/appsettings.Development.json.example API/appsettings.Development.json
 ```
+
+| File | Contains |
+|---|---|
+| `.env` | Docker Compose variables (Postgres/Elastic/Kibana passwords, ports) |
+| `API/appsettings.Development.json` | Connection string, `ElasticSettings` (incl. password), `LlmSettings`, `Scraper:Enabled` |
 
 - Elasticsearch is optional — if unreachable, search falls back to SQL `LIKE` queries.
 - `LlmSettings` points to a local OpenAI-compatible server (oMLX). Without it, LLM-based sources are skipped.
 - `Scraper:Enabled` (or env `Scraper__Enabled=false`) disables the background scraper, useful during development.
-
-### `.env` (Docker Compose variables)
-
-```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=changeme123
-POSTGRES_DB=findevents
-POSTGRES_PORT=5432
-
-STACK_VERSION=8.15.0
-ELASTIC_PASSWORD=changeme123
-KIBANA_PASSWORD=kibana456
-ES_PORT=9200
-KIBANA_PORT=5601
-MEM_LIMIT=1073741824
-```
 
 ---
 

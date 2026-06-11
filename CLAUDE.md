@@ -34,11 +34,6 @@ npm run build
 npm run lint
 ```
 
-### EventTrainer (dev utility)
-```bash
-dotnet run --project EventTrainer   # one-off keyword backfill of Category in DB (+ legacy ML.NET experiment)
-```
-
 ## Architecture
 
 **Clean Architecture**, vertical slice features in API (MediatR removed):
@@ -91,6 +86,6 @@ Infinite scroll pattern: last `EventCard` gets an intersection observer ref → 
 
 ## Configuration
 
-`API/appsettings.Development.json` needs `ConnectionStrings.DefaultConnection`, `ElasticSettings.Url`/`DefaultIndex`, and `LlmSettings.BaseUrl`/`Model`/`ApiKey` (local oMLX server, port 8000). Elasticsearch password hardcoded in `ElasticService.cs` (`"Password"`) — only used in dev with self-signed cert + `AllowAll` callback.
+`API/appsettings.Development.json` and `.env` are gitignored — copy from `API/appsettings.Development.json.example` / `.env.example`. Needs `ConnectionStrings.DefaultConnection`, `ElasticSettings.Url`/`DefaultIndex`/`Password`, and `LlmSettings.BaseUrl`/`Model`/`ApiKey` (local oMLX server, port 8000). Dev Elasticsearch uses self-signed cert + `AllowAll` callback.
 
 `Domain.Event.Link` has a unique index — deduplication relies on this at the DB level too.

@@ -31,7 +31,7 @@ public class ElasticService : IElasticService
 
         var settings = new ElasticsearchClientSettings(new Uri(_elasticSettings.Url))
         .DefaultIndex(_elasticSettings.DefaultIndex)
-        .Authentication(new BasicAuthentication("elastic", "Password"))
+        .Authentication(new BasicAuthentication("elastic", _elasticSettings.Password))
         .ServerCertificateValidationCallback(CertificateValidations.AllowAll)
         .DisableDirectStreaming();
 
