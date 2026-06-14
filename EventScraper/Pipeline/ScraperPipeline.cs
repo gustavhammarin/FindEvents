@@ -35,6 +35,13 @@ public class ScraperPipeline
         _logger.LogInformation("Pipeline done: {Events} events from {Sources}/{Total} sources",
             totalEvents, results.Count(r => r.Success), sourceCount);
 
+        using var cleanupScope = _serviceProvider.CreateScope();
+        var repo = cleanupScope.ServiceProvider.GetRequiredService<IEventRepository>();
+        var cutoff = DateOnly.FromDateTime(DateTime.UtcNow);
+        var deleted = await repo.DeleteOldEventsAsync(cutoff);
+        if (deleted > 0)
+            _logger.LogInformation("Pipeline cleanup: deleted {Count} past events (StartDate < {Cutoff})", deleted, cutoff);
+
         return new PipelineResult
         {
             TotalScrapers = sourceCount,
@@ -59,16 +66,30 @@ public class ScraperPipeline
             var events = await source.FetchAsync(ct);
             var list = Deduplicate(events);
 
-            // Structured sources don't go through the LLM — fill their category here
-            foreach (var ev in list.Where(e => string.IsNullOrWhiteSpace(e.Category)))
-                ev.Category = EventCategorizer.Categorize(ev.Title, ev.Description);
-
-            // Save per source so a crash/restart mid-run never loses completed LLM work
             var repository = scope.ServiceProvider.GetRequiredService<IEventRepository>();
-            await repository.SaveEventsAsync(list);
 
-            _logger.LogInformation("{Source}: {Count} events saved", source.Name, list.Count);
-            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = list.Count, Events = list };
+            // Skip existing links before any LLM work — avoids wasting tokens on already-saved events.
+            var allLinks = list.Where(e => !string.IsNullOrEmpty(e.Link)).Select(e => e.Link).ToList();
+            var existingLinks = await repository.GetExistingLinksAsync(allLinks);
+            var newList = list.Where(e => !existingLinks.Contains(e.Link)).ToList();
+
+            // Structured sources omit category — assign via keyword scoring, LLM fallback for "Övrigt".
+            var llm = scope.ServiceProvider.GetRequiredService<ILlmExtractor>();
+            foreach (var ev in newList.Where(e => string.IsNullOrWhiteSpace(e.Category)))
+            {
+                ev.Category = EventCategorizer.Categorize(ev.Title, ev.Description);
+                if (ev.Category == "Övrigt")
+                {
+                    var llmCategory = await llm.CategorizeAsync(ev.Title, ev.Description, ct);
+                    if (llmCategory != null) ev.Category = llmCategory;
+                }
+            }
+
+            await repository.SaveEventsAsync(newList);
+
+            _logger.LogInformation("{Source}: {Total} fetched, {New} new, {Saved} saved",
+                source.Name, list.Count, newList.Count, newList.Count);
+            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = newList.Count, Events = newList };
         }
         catch (Exception ex)
         {

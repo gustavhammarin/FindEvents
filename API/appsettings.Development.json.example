@@ -5,16 +5,16 @@
       "Microsoft.AspNetCore": "Information"
     }
   },
-  "ElasticSettings": {
-    "Url": "https://localhost:9200",
-    "DefaultIndex": "events",
-    "Password": "<elastic-password>"
-  },
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=findevents;Username=postgres;Password=<postgres-password>"
   },
   "Scraper": {
     "Enabled": true
+  },
+  "MistralSettings": {
+    "BaseUrl": "https://api.mistral.ai/v1",
+    "Model": "mistral-small-2506",
+    "ApiKey": "<mistral-api-key>"
   },
   "LlmSettings": {
     "BaseUrl": "http://127.0.0.1:8000/v1",

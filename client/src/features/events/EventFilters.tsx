@@ -1,6 +1,5 @@
-import { useStore } from "../../lib/hooks/useStore";
-import { observer } from "mobx-react-lite";
-import { Search, X, CalendarIcon, Tag, Check } from "lucide-react";
+import { useFilters } from "../../lib/context/FilterContext";
+import { Search, X, CalendarIcon, Tag, Check, MapPin, BookOpen } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -13,10 +12,20 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { EVENT_CATEGORIES } from "../../lib/util/categories";
 
-const EventFilters = observer(() => {
-    const { eventStore: { setSearch, search, setStartDate, startDate, setCategory, category } } = useStore();
+const ORGANIZERS: { label: string; source: string }[] = [
+    { label: "Studieförbundet Vuxenskolan", source: "sv.se" },
+];
 
-    const hasFilters = !!search || !!startDate || !!category;
+const MUNICIPALITIES = [
+    "Aneby", "Eksjö", "Gislaved", "Gnosjö", "Habo",
+    "Jönköping", "Mullsjö", "Nässjö", "Sävsjö", "Tranås",
+    "Vaggeryd", "Vetlanda", "Värnamo",
+];
+
+export default function EventFilters() {
+    const { search, setSearch, startDate, setStartDate, category, setCategory, municipality, setMunicipality, source, setSource } = useFilters();
+
+    const hasFilters = !!search || !!startDate || !!category || !!municipality || !!source;
 
     return (
         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm max-w-xl mx-auto">
@@ -56,6 +65,56 @@ const EventFilters = observer(() => {
 
             <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
 
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-1.5 text-sm whitespace-nowrap transition-colors flex-shrink-0 max-w-36"
+                        style={{ color: municipality ? '#111827' : '#9ca3af' }}>
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{municipality || "Kommun"}</span>
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                    {municipality && (
+                        <DropdownMenuItem onClick={() => setMunicipality("")} className="text-gray-500">
+                            Alla kommuner
+                        </DropdownMenuItem>
+                    )}
+                    {MUNICIPALITIES.map((m) => (
+                        <DropdownMenuItem key={m} onClick={() => setMunicipality(m)}>
+                            <span className="flex-1">{m}</span>
+                            {municipality === m && <Check className="w-3.5 h-3.5 text-gray-500" />}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-1.5 text-sm whitespace-nowrap transition-colors flex-shrink-0 max-w-36"
+                        style={{ color: source ? '#111827' : '#9ca3af' }}>
+                        <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{ORGANIZERS.find(o => o.source === source)?.label || "Arrangör"}</span>
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                    {source && (
+                        <DropdownMenuItem onClick={() => setSource("")} className="text-gray-500">
+                            Alla arrangörer
+                        </DropdownMenuItem>
+                    )}
+                    {ORGANIZERS.map((o) => (
+                        <DropdownMenuItem key={o.source} onClick={() => setSource(o.source)}>
+                            <span className="flex-1">{o.label}</span>
+                            {source === o.source && <Check className="w-3.5 h-3.5 text-gray-500" />}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
+
             <Popover>
                 <PopoverTrigger asChild>
                     <button className="flex items-center gap-1.5 text-sm whitespace-nowrap transition-colors flex-shrink-0"
@@ -75,7 +134,7 @@ const EventFilters = observer(() => {
 
             {hasFilters && (
                 <button
-                    onClick={() => { setSearch(""); setStartDate(undefined); setCategory(""); }}
+                    onClick={() => { setSearch(""); setStartDate(undefined); setCategory(""); setMunicipality(""); setSource(""); }}
                     className="p-0.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                 >
                     <X className="w-3.5 h-3.5" />
@@ -83,6 +142,4 @@ const EventFilters = observer(() => {
             )}
         </div>
     );
-});
-
-export default EventFilters;
+}

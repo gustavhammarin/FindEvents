@@ -13,8 +13,12 @@ namespace EventScraper.Sources;
 /// </summary>
 public class TranasSource : IEventSource
 {
-    private const string ApiUrl = "https://tranas.se/wp-json/wp/v2/event?per_page=100&page=";
+    private const string ApiBase = "https://tranas.se/wp-json/wp/v2/event?per_page=100&orderby=date&order=desc";
     private const int MaxPages = 5;
+
+    private static string ApiUrl =>
+        ApiBase + "&after=" + Uri.EscapeDataString(
+            DateTime.UtcNow.AddYears(-1).ToString("yyyy-MM-ddT00:00:00")) + "&page=";
 
     private readonly IHttpLoader _loader;
     private readonly ILlmExtractor _llm;
@@ -67,6 +71,12 @@ public class TranasSource : IEventSource
             var text = $"{post.title?.rendered}\n{StripHtml(post.content?.rendered)}";
             var ev = await _llm.ExtractAsync(text, post.link!, "Tranås", ct);
             if (ev is null || ev.StartDate is null) continue;
+
+            if (ev.StartDate < DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-14))
+            {
+                _logger.LogDebug("{Source}: rejecting stale date {Date} for {Url}", Name, ev.StartDate, post.link);
+                continue;
+            }
 
             ev.Source = Name;
             if (string.IsNullOrEmpty(ev.ImageUrl))

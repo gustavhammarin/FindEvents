@@ -1,18 +1,17 @@
 # FindEvents
 
-Swedish event aggregation app for Jönköping County. Scrapes event listings from municipal websites — structured feeds where available, local LLM extraction where not — and presents them in a searchable, filterable feed.
+Swedish event aggregation app for Jönköping County. Scrapes municipal websites and structured feeds, presents events in a searchable, filterable feed.
 
 ## Stack
 
 | Layer | Tech |
 |---|---|
 | API | .NET 10 / ASP.NET Core (minimal APIs) |
-| Database | PostgreSQL 17 |
-| Search | Elasticsearch 8 (optional) |
-| LLM extraction | Local oMLX server (OpenAI-compatible, optional) |
-| Frontend | React + TypeScript + Vite |
+| Database | PostgreSQL 17 + pg_trgm (fuzzy search) |
+| LLM extraction | Mistral API (default) or local oMLX server |
+| Frontend | React 19 + TypeScript + Vite |
 | State | MobX |
-| UI | Tailwind CSS + shadcn/ui |
+| UI | Tailwind CSS v4 + shadcn/ui |
 
 ## Project structure
 
@@ -20,7 +19,7 @@ Swedish event aggregation app for Jönköping County. Scrapes event listings fro
 API/              ASP.NET Core Web API (vertical slice features + modules)
 Application/      Shared core: Result, PagedList, cursor, DTOs
 Domain/           Entity models
-Persistence/      EF Core DbContext + migrations
+Persistence/      EF Core DbContext + migrations (pg_trgm enabled)
 Infrastructure/   Event repository
 EventScraper/     Scraper library: sources, LLM extraction, categorization
 Tests/            xunit tests
@@ -30,19 +29,28 @@ docker-compose.yaml
 
 ## Scraped sources
 
-**Structured (no LLM)** — parsed from embedded JSON or APIs:
+**Structured (no LLM)** — parsed from APIs or embedded JSON:
 
-- [jkpg.com](https://jkpg.com) — Jönköping
-- [nassjo.se](https://www.nassjo.se) — Nässjö
-- [habokommun.se](https://www.habokommun.se) — Habo
-- [varnamo.cruncho.co](https://varnamo.cruncho.co) — Värnamo
-- [tranas.se](https://tranas.se) — Tranås (WP REST + LLM for dates)
+| Source | Municipality |
+|---|---|
+| [jkpg.com](https://jkpg.com) | Jönköping |
+| [habokommun.se](https://www.habokommun.se) | Habo |
+| [varnamo.cruncho.co](https://varnamo.cruncho.co) | Värnamo |
+| [lokal.app](https://savsjo.appen.se) | Sävsjö, Vetlanda, Nässjö, Eksjö |
+| [sv.se](https://www.sv.se) | Hela Jönköpings län (Studieförbundet Vuxenskolan) |
 
-**LLM-extracted** — event pages discovered via sitemap/list page, text sent to a local LLM:
+**LLM-extracted** — event pages discovered via sitemap, text sent to LLM:
 
-- Mullsjö, Sävsjö, Gislaved, [Eksjö](https://visiteksjo.se), Vetlanda, Aneby, Gnosjö, Vaggeryd
+| Source | Municipality |
+|---|---|
+| [tranas.se](https://tranas.se) | Tranås (WP REST API + LLM for dates) |
+| [mullsjo.se](https://www.mullsjo.se) | Mullsjö |
+| [gislaved.se](https://www.gislaved.se) | Gislaved |
+| [aneby.se](https://www.aneby.se) | Aneby |
+| [gnosjoandan.com](https://www.gnosjoandan.com) | Gnosjö |
+| [vaggeryd.se](https://www.vaggeryd.se) | Vaggeryd |
 
-Scraping runs automatically every 6 hours in the background. Already-saved links are skipped, so LLM calls only happen for new events. Each event gets one of 15 fixed categories — picked by the LLM during extraction, or by keyword matching for structured sources.
+Scraping runs every 6 hours in the background. Already-saved links are skipped before any LLM call. Each event gets one of 15 fixed Swedish categories — picked by the LLM during extraction, or by keyword scoring for structured sources, with LLM fallback for "Övrigt".
 
 ---
 
@@ -53,32 +61,33 @@ Scraping runs automatically every 6 hours in the background. Already-saved links
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Node.js 20+](https://nodejs.org)
 - [Docker](https://www.docker.com)
-- (Optional) Local oMLX server for LLM-based sources
 
-### 1. Start the database
+### 1. Configure secrets
 
 ```bash
-docker compose up postgres -d
+cp .env.example .env
+cp API/appsettings.Development.json.example API/appsettings.Development.json
 ```
 
-> To also start Elasticsearch + Kibana (optional, enables full-text search):
-> ```bash
-> docker compose up -d
-> ```
+Fill in `.env` (Postgres credentials) and `appsettings.Development.json` (connection string + LLM key).
 
-### 2. Run the API
+### 2. Start the database
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL + pgAdmin. pgAdmin is available at `http://localhost:5050`.
+
+### 3. Run the API
 
 ```bash
 dotnet run --project API
 ```
 
-The API starts on `http://localhost:5001`. On first launch it:
-- Runs EF Core migrations automatically
-- Starts the event scraper in the background
+Starts on `http://localhost:5001`. On first launch it runs EF Core migrations (including pg_trgm) and starts the scraper in the background.
 
-> Events appear in the feed after the first scraper run. Without an LLM server, only structured sources produce events.
-
-### 3. Run the frontend
+### 4. Run the frontend
 
 ```bash
 cd client
@@ -98,28 +107,29 @@ dotnet test Tests/Tests.csproj
 
 ## Configuration
 
-Secrets are kept out of git. Copy the templates and fill in your own values:
-
-```bash
-cp .env.example .env
-cp API/appsettings.Development.json.example API/appsettings.Development.json
-```
-
 | File | Contains |
 |---|---|
-| `.env` | Docker Compose variables (Postgres/Elastic/Kibana passwords, ports) |
-| `API/appsettings.Development.json` | Connection string, `ElasticSettings` (incl. password), `LlmSettings`, `Scraper:Enabled` |
+| `.env` | Docker Compose variables (Postgres/pgAdmin credentials, ports) |
+| `API/appsettings.Development.json` | `ConnectionStrings`, `MistralSettings`, `LlmSettings`, `Scraper:Enabled` |
 
-- Elasticsearch is optional — if unreachable, search falls back to SQL `LIKE` queries.
-- `LlmSettings` points to a local OpenAI-compatible server (oMLX). Without it, LLM-based sources are skipped.
-- `Scraper:Enabled` (or env `Scraper__Enabled=false`) disables the background scraper, useful during development.
+**LLM extraction** — if `MistralSettings:ApiKey` is set, uses Mistral API. Otherwise falls back to a local OpenAI-compatible server (`LlmSettings:BaseUrl`, default `http://127.0.0.1:8000/v1`).
+
+**Disable scraper** — set `Scraper:Enabled: false` (or env `Scraper__Enabled=false`) to prevent background scraping, useful during development.
+
+**Test a single source** — comment out sources in `EventScraper/ScraperServiceExtensions.cs`.
+
+---
+
+## Search
+
+Full-text search uses PostgreSQL `pg_trgm` — no separate search service needed. Supports case-insensitive substring match (`ILIKE`) and fuzzy trigram similarity on title, description, location and municipality.
 
 ---
 
 ## Adding a scraper source
 
-All sources implement `IEventSource` and are auto-discovered at startup — no manual DI registration.
+All sources are registered in `EventScraper/ScraperServiceExtensions.cs`. Add a line and implement the interface.
 
-**Site with structured data** (JSON blob, API): implement `IEventSource` directly in `EventScraper/Sources/`.
+**Structured source** (API or JSON): implement `IEventSource` in `EventScraper/Sources/`.
 
-**Site without structured data**: subclass `LlmHtmlSource` and implement `Name`, `Municipality`, `BaseUrl` and `DiscoverUrlsAsync()` (use `FromSitemapAsync()` or `FromListPageAsync()`). The base class fetches each page, strips the HTML and lets the LLM extract the event.
+**LLM-extracted source**: subclass `LlmHtmlSource` and implement `Name`, `Municipality`, `BaseUrl` and `DiscoverUrlsAsync()`. Use `FromSitemapAsync()` or `FromListPageAsync()` for URL discovery. The base class handles HTML fetching, text extraction, LLM extraction and deduplication.

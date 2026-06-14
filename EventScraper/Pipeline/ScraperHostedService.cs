@@ -8,7 +8,7 @@ public class ScraperHostedService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ScraperHostedService> _logger;
     private readonly bool _enabled;
-    private readonly TimeSpan _runInterval = TimeSpan.FromHours(6); // Kör var 6:e timme
+    private readonly TimeSpan _runInterval = TimeSpan.FromHours(24); // Kör var 6:e timme
 
     public ScraperHostedService(
         IServiceProvider serviceProvider,
