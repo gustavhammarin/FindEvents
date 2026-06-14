@@ -1,6 +1,3 @@
-using System;
-using System.Text.Json.Serialization;
-
 namespace Application.Events.DTOs;
 
 public class EventDto

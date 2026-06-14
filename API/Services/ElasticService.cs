@@ -1,11 +1,7 @@
-using System;
 using API.Configuration;
 using API.Models;
 using Application.Interfaces;
-using Domain;
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.Core.GetScriptContext;
-using Elastic.Clients.Elasticsearch.Inference;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Elastic.Transport;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +35,7 @@ public class ElasticService : IElasticService
     }
     public async Task CreateIndexIfNotExistsAsync()
     {
-        var pingResponse = await _client.PingAsync();
+        var pingResponse = await _client!.PingAsync();
         _logger.LogInformation("Ping response: Valid={IsValid}, Status={Status}",
         pingResponse.IsValidResponse, pingResponse.ApiCallDetails?.HttpStatusCode);
 
@@ -53,10 +49,10 @@ public class ElasticService : IElasticService
         {
             Id = e.Id,
             Title = e.Title.ToLower(),
-            Location = e.Location.ToLower(),
+            Location = e.Location!.ToLower(),
             Municipality = e.Municipality.ToLower(),
             Category = e.Category.ToLower(),
-            Description = e.Description.ToLower(),
+            Description = e.Description!.ToLower(),
         })
         .ToListAsync();
 
