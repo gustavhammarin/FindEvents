@@ -9,7 +9,7 @@ public static class ScraperServiceExtensions
 {
     public static IServiceCollection AddScraperSources(this IServiceCollection services)
     {
-/*         services.AddScoped<IEventSource, JkpgSource>();
+        services.AddScoped<IEventSource, JkpgSource>();
         services.AddScoped<IEventSource, HaboSource>();
         services.AddScoped<IEventSource, TranasSource>();
         services.AddScoped<IEventSource, VarnamoSource>();
@@ -21,7 +21,7 @@ public static class ScraperServiceExtensions
         services.AddScoped<IEventSource, SavsjoSource>();
         services.AddScoped<IEventSource, VetlandaSource>();
         services.AddScoped<IEventSource, NassjoSource>();
-        services.AddScoped<IEventSource, EksjoSource>(); */
+        services.AddScoped<IEventSource, EksjoSource>();
         services.AddScoped<IEventSource, SvSource>();
 
         return services;

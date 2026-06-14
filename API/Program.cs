@@ -4,12 +4,14 @@ using EventScraper;
 using EventScraper.Configuration;
 using EventScraper.Extractors;
 using EventScraper.Interfaces;
-using EventScraper.Utils;
 using Infrastructure.Events;
 using Microsoft.EntityFrameworkCore;
 using Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -79,7 +81,15 @@ app.UseCors(x => x.AllowAnyHeader().AllowAnyMethod().AllowCredentials()
                  "https://localhost:5173", "http://localhost:5173",
                  "http://127.0.0.1:5500", "https://127.0.0.1:5500"));
 
+//Blazor
+app.UseStaticFiles();
+app.UseAntiforgery();
+app.MapRazorComponents<API.Components.App>()
+    .AddInteractiveServerRenderMode();
+//
+
 app.MapControllers();
+
 
 foreach (var module in modules)
     module.MapEndpoints(app);
