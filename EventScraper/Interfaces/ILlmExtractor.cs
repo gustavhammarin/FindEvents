@@ -5,4 +5,5 @@ namespace EventScraper.Interfaces;
 public interface ILlmExtractor
 {
     Task<EventInfo?> ExtractAsync(string text, string sourceUrl, string municipality, CancellationToken ct = default);
+    Task<string?> CategorizeAsync(string title, string? description, CancellationToken ct = default);
 }
