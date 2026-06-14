@@ -24,4 +24,7 @@ public class GetEventsQuery
 
     [FromQuery(Name = "startDate")]
     public string? StartDate { get; set; }
+
+    [FromQuery(Name = "source")]
+    public string? Source { get; set; }
 }

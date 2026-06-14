@@ -1,13 +1,12 @@
 using Application.Activities.Core;
 using Application.Core;
 using Application.Events.DTOs;
-using Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Persistence;
 
 namespace API.Features.Events;
 
-public class GetEventsHandler(AppDbContext db, IElasticService elastic)
+public class GetEventsHandler(AppDbContext db)
 {
     private const int MaxPageSize = 50;
 
@@ -54,24 +53,20 @@ public class GetEventsHandler(AppDbContext db, IElasticService elastic)
         if (!string.IsNullOrWhiteSpace(query.Category) && ValidCategories.Contains(query.Category))
             q = q.Where(e => e.Category == query.Category);
 
-        // Text search
+        // Source filter
+        if (!string.IsNullOrWhiteSpace(query.Source))
+            q = q.Where(e => e.Source == query.Source.Trim());
+
+        // Text search — ILike (case-insensitive) + trigram similarity for fuzzy tolerance
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var search = query.Search.Trim().ToLower();
-            var elasticIds = await elastic.SearchQuery(search);
-
-            if (elasticIds.Count > 0)
-            {
-                q = q.Where(e => elasticIds.Contains(e.Id));
-            }
-            else
-            {
-                q = q.Where(e =>
-                    EF.Functions.Like(e.Title.ToLower(), $"%{search}%") ||
-                    (e.Description != null && EF.Functions.Like(e.Description.ToLower(), $"%{search}%")) ||
-                    EF.Functions.Like(e.Location.ToLower(), $"%{search}%") ||
-                    EF.Functions.Like(e.Municipality.ToLower(), $"%{search}%"));
-            }
+            var search = query.Search.Trim();
+            q = q.Where(e =>
+                EF.Functions.ILike(e.Title, $"%{search}%") ||
+                (e.Description != null && EF.Functions.ILike(e.Description, $"%{search}%")) ||
+                (e.Location != null && EF.Functions.ILike(e.Location, $"%{search}%")) ||
+                EF.Functions.ILike(e.Municipality, $"%{search}%") ||
+                EF.Functions.TrigramsSimilarity(e.Title, search) > 0.2);
         }
 
         var events = await q

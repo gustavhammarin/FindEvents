@@ -1,27 +1,17 @@
-import { SearchOff } from "@mui/icons-material";
-import { Button, Paper, Typography } from "@mui/material";
 import { Link } from "react-router";
+import { SearchX } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <Paper
-        sx={{
-            height: 400,
-            dispaly: 'flex',
-            flexDirection: ' column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            p:6
-        }}
-    >
-        <SearchOff sx={{fontSize: 100}} color="primary"></SearchOff>
-        <Typography gutterBottom variant="h3">
-            Oops - we could not find what you are looking for
-        </Typography>
-        <Button fullWidth component={Link} to='/activities'>
-            Return to the activities page
-        </Button>
-
-    </Paper>
-  )
+    <div className="max-w-sm mx-auto mt-24 flex flex-col items-center gap-4 text-center">
+      <SearchX className="w-16 h-16 text-gray-300" />
+      <h1 className="text-xl font-semibold text-gray-900">Sidan hittades inte</h1>
+      <Link
+        to="/events"
+        className="text-sm text-gray-500 hover:text-gray-900 underline transition-colors"
+      >
+        Tillbaka till evenemang
+      </Link>
+    </div>
+  );
 }

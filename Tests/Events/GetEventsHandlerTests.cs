@@ -1,8 +1,6 @@
 using API.Features.Events;
-using Application.Interfaces;
 using Domain;
 using Microsoft.EntityFrameworkCore;
-using Moq;
 using Persistence;
 using Xunit;
 
@@ -11,7 +9,6 @@ namespace Tests.Events;
 public class GetEventsHandlerTests : IDisposable
 {
     private readonly AppDbContext _db;
-    private readonly Mock<IElasticService> _elastic;
     private readonly GetEventsHandler _handler;
 
     public GetEventsHandlerTests()
@@ -21,11 +18,7 @@ public class GetEventsHandlerTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _elastic = new Mock<IElasticService>();
-        _elastic.Setup(e => e.SearchQuery(It.IsAny<string>()))
-                .ReturnsAsync(new List<string>());
-
-        _handler = new GetEventsHandler(_db, _elastic.Object);
+        _handler = new GetEventsHandler(_db);
     }
 
     public void Dispose() => _db.Dispose();
@@ -124,47 +117,6 @@ public class GetEventsHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task Text_search_falls_back_to_sql_like()
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        await SeedAsync([
-            MakeEvent("1", "Sommarfest i parken", today.AddDays(1)),
-            MakeEvent("2", "Vinterkonsert", today.AddDays(1)),
-        ]);
-
-        // Elastic returns empty → SQL LIKE kicks in
-        var result = await _handler.HandleAsync(new GetEventsQuery
-        {
-            Search = "sommar",
-            StartDate = today.ToString()
-        });
-
-        Assert.Single(result.Items);
-        Assert.Contains("Sommar", result.Items[0].Title, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task Text_search_uses_elastic_ids_when_available()
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        await SeedAsync([
-            MakeEvent("1", "Jazz", today.AddDays(1)),
-            MakeEvent("2", "Rock", today.AddDays(1)),
-        ]);
-
-        _elastic.Setup(e => e.SearchQuery("jazz")).ReturnsAsync(["1"]);
-
-        var result = await _handler.HandleAsync(new GetEventsQuery
-        {
-            Search = "jazz",
-            StartDate = today.ToString()
-        });
-
-        Assert.Single(result.Items);
-        Assert.Equal("1", result.Items[0].Id);
-    }
-
-    [Fact]
     public async Task Pagination_returns_correct_page_size()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -252,7 +204,6 @@ public class GetEventsHandlerTests : IDisposable
             MakeEvent("2", "B", today.AddDays(1), municipality: "Nässjö"),
         ]);
 
-        // Partial match "köping" should match "Jönköping"
         var result = await _handler.HandleAsync(new GetEventsQuery
         {
             Municipality = "köping",

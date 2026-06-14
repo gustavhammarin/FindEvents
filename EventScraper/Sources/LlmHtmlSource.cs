@@ -62,10 +62,25 @@ public abstract class LlmHtmlSource : IEventSource
                 var text = HtmlTextExtractor.Extract(doc);
                 if (string.IsNullOrWhiteSpace(text)) continue;
 
+                // Skip pages explicitly marked as finished — date would be in the past
+                if (text.Contains("Evenemanget är avslutat", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("Aktiviteten är avslutad", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogDebug("{Source}: skipping finished event {Url}", Name, url);
+                    continue;
+                }
+
                 var ev = await _llm.ExtractAsync(text, url, Municipality, ct);
                 if (ev is null || ev.StartDate is null)
                 {
                     _logger.LogDebug("{Source}: no event extracted from {Url}", Name, url);
+                    continue;
+                }
+
+                // Reject events the LLM assigned a date too far in the past — likely a year-guessing error
+                if (ev.StartDate < DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-14))
+                {
+                    _logger.LogDebug("{Source}: rejecting stale date {Date} for {Url}", Name, ev.StartDate, url);
                     continue;
                 }
 

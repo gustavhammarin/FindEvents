@@ -48,6 +48,20 @@ public class AppEventRepository : IEventRepository
             .ToHashSetAsync();
     }
 
+    public async Task<HashSet<string>> GetLinksBySourceAsync(string source) =>
+        await _context.Events
+            .Where(e => e.Source == source)
+            .Select(e => e.Link)
+            .ToHashSetAsync();
+
+    public async Task<int> DeleteOldEventsAsync(DateOnly cutoff)
+    {
+        var deleted = await _context.Events
+            .Where(e => e.StartDate != null && e.StartDate < cutoff)
+            .ExecuteDeleteAsync();
+        return deleted;
+    }
+
     private static Event MapToEvent(EventInfo e) => new()
     {
         Id = e.Id,

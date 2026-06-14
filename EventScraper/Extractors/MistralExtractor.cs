@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using EventScraper.Categorization;
 using EventScraper.Configuration;
 using EventScraper.Interfaces;
@@ -11,18 +10,18 @@ using Microsoft.Extensions.Options;
 
 namespace EventScraper.Extractors;
 
-public class MlxExtractor : ILlmExtractor
+public class MistralExtractor : ILlmExtractor
 {
     private readonly HttpClient _http;
-    private readonly ILogger<MlxExtractor> _logger;
+    private readonly ILogger<MistralExtractor> _logger;
     private readonly string _model;
 
-    private const int MaxTextLength = 4000;
+    private const int MaxTextLength = 6000;
 
     private static readonly string CategoryList =
         string.Join(" | ", EventCategorizer.Categories);
 
-    public MlxExtractor(HttpClient http, IOptions<LlmSettings> settings, ILogger<MlxExtractor> logger)
+    public MistralExtractor(HttpClient http, IOptions<MistralSettings> settings, ILogger<MistralExtractor> logger)
     {
         _http = http;
         _model = settings.Value.Model;
@@ -39,7 +38,6 @@ public class MlxExtractor : ILlmExtractor
 
         var year = DateTime.UtcNow.Year;
         var prompt = $$"""
-            /no_think
             Extrahera evenemangsinformation från texten nedan.
             Returnera ENBART ett JSON-objekt, inga förklaringar.
             Om ett fält saknas, sätt det till null.
@@ -65,12 +63,11 @@ public class MlxExtractor : ILlmExtractor
         var request = new
         {
             model = _model,
-            // No response_format: oMLX json_object mode returns garbage (["_output_"])
+            response_format = new { type = "json_object" },
             messages = new[]
             {
                 new { role = "user", content = prompt }
             },
-            stream = false,
             temperature = 0.1
         };
 
@@ -81,7 +78,8 @@ public class MlxExtractor : ILlmExtractor
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("MLX returned {Status} for {Url}", response.StatusCode, sourceUrl);
+                var body = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Mistral returned {Status} for {Url}: {Body}", response.StatusCode, sourceUrl, body);
                 return null;
             }
 
@@ -90,10 +88,6 @@ public class MlxExtractor : ILlmExtractor
             var content = chatResp?.Choices?.FirstOrDefault()?.Message?.Content;
             if (string.IsNullOrWhiteSpace(content)) return null;
 
-            // Strip <think>...</think> if present (Qwen3 thinking mode leak)
-            content = Regex.Replace(content, @"<think>.*?</think>", "", RegexOptions.Singleline).Trim();
-
-            // Keep only the JSON object (model may add code fences or prose)
             var first = content.IndexOf('{');
             var last = content.LastIndexOf('}');
             if (first < 0 || last <= first) return null;
@@ -117,14 +111,13 @@ public class MlxExtractor : ILlmExtractor
                 Link = sourceUrl,
                 Source = new Uri(sourceUrl).Host,
                 Municipality = municipality,
-                // Validate LLM answer against the fixed list; keyword scoring as fallback
                 Category = EventCategorizer.Normalize(extracted.Category)
                     ?? EventCategorizer.Categorize(extracted.Title, extracted.Description)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "MLX extraction failed for {Url}", sourceUrl);
+            _logger.LogError(ex, "Mistral extraction failed for {Url}", sourceUrl);
             return null;
         }
     }
@@ -132,7 +125,6 @@ public class MlxExtractor : ILlmExtractor
     public async Task<string?> CategorizeAsync(string title, string? description, CancellationToken ct = default)
     {
         var prompt = $"""
-            /no_think
             Vilket kategori passar bäst för detta evenemang?
             Titel: {title}
             Beskrivning: {description ?? ""}
@@ -145,7 +137,6 @@ public class MlxExtractor : ILlmExtractor
         {
             model = _model,
             messages = new[] { new { role = "user", content = prompt } },
-            stream = false,
             temperature = 0.0,
             max_tokens = 30
         };
@@ -158,15 +149,12 @@ public class MlxExtractor : ILlmExtractor
 
             var json = await resp.Content.ReadAsStringAsync(ct);
             var chatResp = JsonSerializer.Deserialize<ChatCompletionResponse>(json);
-            var content = chatResp?.Choices?.FirstOrDefault()?.Message?.Content;
-            if (string.IsNullOrWhiteSpace(content)) return null;
-
-            content = Regex.Replace(content, @"<think>.*?</think>", "", RegexOptions.Singleline).Trim();
+            var content = chatResp?.Choices?.FirstOrDefault()?.Message?.Content?.Trim();
             return string.IsNullOrWhiteSpace(content) ? null : EventCategorizer.Normalize(content);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "MLX categorization failed for '{Title}'", title);
+            _logger.LogWarning(ex, "Mistral categorization failed for '{Title}'", title);
             return null;
         }
     }
@@ -177,7 +165,6 @@ public class MlxExtractor : ILlmExtractor
     private static TimeOnly? ParseTime(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : TimeOnly.TryParse(s, out var t) ? t : null;
 
-    // OpenAI response model
     private class ChatCompletionResponse
     {
         [JsonPropertyName("choices")]
