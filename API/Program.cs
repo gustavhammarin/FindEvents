@@ -1,8 +1,6 @@
-using API.Configuration;
 using API.Middleware;
 using API.Modules;
-using API.Services;
-using Application.Interfaces;
+using EventScraper;
 using EventScraper.Configuration;
 using EventScraper.Extractors;
 using EventScraper.Interfaces;
@@ -33,28 +31,34 @@ builder.Services.AddHttpClient<IHttpLoader, HttpLoader>(client =>
 builder.Services.Configure<LlmSettings>(
     builder.Configuration.GetSection("LlmSettings"));
 
-builder.Services.AddHttpClient<ILlmExtractor, MlxExtractor>(client =>
+builder.Services.Configure<MistralSettings>(
+    builder.Configuration.GetSection("MistralSettings"));
+
+var mistralApiKey = builder.Configuration["MistralSettings:ApiKey"];
+if (!string.IsNullOrWhiteSpace(mistralApiKey))
 {
-    var baseUrl = builder.Configuration["LlmSettings:BaseUrl"] ?? "http://127.0.0.1:8000/v1";
-    client.Timeout = TimeSpan.FromSeconds(120);
-    client.BaseAddress = new Uri(baseUrl);
-});
+    builder.Services.AddHttpClient<ILlmExtractor, MistralExtractor>(client =>
+    {
+        var baseUrl = builder.Configuration["MistralSettings:BaseUrl"] ?? "https://api.mistral.ai/v1";
+        client.Timeout = TimeSpan.FromSeconds(60);
+        client.BaseAddress = new Uri(baseUrl);
+    });
+}
+else
+{
+    builder.Services.AddHttpClient<ILlmExtractor, MlxExtractor>(client =>
+    {
+        var baseUrl = builder.Configuration["LlmSettings:BaseUrl"] ?? "http://127.0.0.1:8000/v1";
+        client.Timeout = TimeSpan.FromSeconds(120);
+        client.BaseAddress = new Uri(baseUrl);
+    });
+}
 
 builder.Services.AddScoped<IEventRepository, AppEventRepository>();
 builder.Services.AddScoped<ScraperPipeline>();
 builder.Services.AddHostedService<ScraperHostedService>();
 
-// Auto-register all IEventSource implementations
-var scraperAssembly = typeof(IEventSource).Assembly;
-foreach (var type in scraperAssembly.GetTypes()
-    .Where(t => typeof(IEventSource).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract))
-{
-    builder.Services.AddScoped(typeof(IEventSource), type);
-}
-
-builder.Services.Configure<ElasticSettings>(
-    builder.Configuration.GetSection("ElasticSettings"));
-builder.Services.AddScoped<IElasticService, ElasticService>();
+builder.Services.AddScraperSources();
 
 // Auto-discover and register all IModule implementations
 var modules = typeof(Program).Assembly.GetTypes()

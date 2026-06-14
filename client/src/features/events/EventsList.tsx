@@ -1,10 +1,9 @@
 import { useEvents } from "@/lib/hooks/useEvents";
-import { observer } from "mobx-react-lite";
 import EventCard from "./EventCard";
 import { useInView } from "react-intersection-observer";
 import { useEffect } from "react";
 
-const EventsList = observer(function EventsList() {
+export default function EventsList() {
   const { eventsGroup, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useEvents();
   const { ref, inView } = useInView({ threshold: 0.1 });
 
@@ -31,11 +30,7 @@ const EventsList = observer(function EventsList() {
     );
   }
 
-  if (!eventsGroup) {
-    return <p className="text-sm text-gray-400 text-center py-16">Inga evenemang hittades</p>;
-  }
-
-  const events = eventsGroup.pages.flatMap((page) => page.items);
+  const events = eventsGroup?.pages.flatMap((page) => page.items) ?? [];
 
   if (events.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-16">Inga evenemang hittades</p>;
@@ -62,6 +57,4 @@ const EventsList = observer(function EventsList() {
       )}
     </div>
   );
-});
-
-export default EventsList;
+}

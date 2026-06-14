@@ -18,17 +18,6 @@ public class MullsjoSource(IHttpLoader loader, ILlmExtractor llm, IEventReposito
             u => u.Contains("/arkiv/evenemang/evenemang/"));
 }
 
-public class SavsjoSource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<SavsjoSource> logger)
-    : LlmHtmlSource(loader, llm, repo, logger)
-{
-    public override string Name => "savsjo.se";
-    protected override string Municipality => "Sävsjö";
-    protected override string BaseUrl => "https://www.savsjo.se";
-
-    protected override Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct) =>
-        FromSitemapAsync("https://www.savsjo.se/sitemap1.xml.gz",
-            u => u.Contains("/nyheter/evenemang/"));
-}
 
 public class GislavedSource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<GislavedSource> logger)
     : LlmHtmlSource(loader, llm, repo, logger)
@@ -42,29 +31,6 @@ public class GislavedSource(IHttpLoader loader, ILlmExtractor llm, IEventReposit
             u => u.Contains("/evenemangskalender/evenemang"));
 }
 
-public class EksjoSource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<EksjoSource> logger)
-    : LlmHtmlSource(loader, llm, repo, logger)
-{
-    public override string Name => "visiteksjo.se";
-    protected override string Municipality => "Eksjö";
-    protected override string BaseUrl => "https://visiteksjo.se";
-
-    protected override Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct) =>
-        FromSitemapAsync("https://visiteksjo.se/sitemap1.xml.gz",
-            u => u.Contains("/artikelarkiv/evenemang/"));
-}
-
-public class VetlandaSource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<VetlandaSource> logger)
-    : LlmHtmlSource(loader, llm, repo, logger)
-{
-    public override string Name => "vetlanda.se";
-    protected override string Municipality => "Vetlanda";
-    protected override string BaseUrl => "https://www.vetlanda.se";
-
-    protected override Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct) =>
-        FromSitemapAsync("https://www.vetlanda.se/sitemap1.xml.gz",
-            u => u.Contains("/evenemangskalender/evenemang/"));
-}
 
 public class AnebySource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<AnebySource> logger)
     : LlmHtmlSource(loader, llm, repo, logger)
@@ -86,9 +52,19 @@ public class GnosjoSource(IHttpLoader loader, ILlmExtractor llm, IEventRepositor
     protected override string Municipality => "Gnosjö";
     protected override string BaseUrl => "https://www.gnosjoandan.com";
 
-    protected override Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct) =>
-        FromListPageAsync("https://www.gnosjoandan.com/visit-gnosjo/evenemang",
-            @"/sv/visit-gnosjo/evenemang/[^""]+");
+    protected override async Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct)
+    {
+        var all = new List<string>();
+        for (var page = 1; page <= 10; page++)
+        {
+            var url = $"https://www.gnosjoandan.com/visit-gnosjo/evenemang?page={page}";
+            var batch = (await FromListPageAsync(url, @"/sv/visit-gnosjo/evenemang/[^""]+")).ToList();
+            if (batch.Count == 0) break;
+            all.AddRange(batch);
+            if (batch.Count < 9) break; // last page has fewer than full page
+        }
+        return all;
+    }
 }
 
 public class VaggerydSource(IHttpLoader loader, ILlmExtractor llm, IEventRepository repo, ILogger<VaggerydSource> logger)
@@ -98,8 +74,8 @@ public class VaggerydSource(IHttpLoader loader, ILlmExtractor llm, IEventReposit
     protected override string Municipality => "Vaggeryd";
     protected override string BaseUrl => "https://www.vaggeryd.se";
 
-    // Vaggeryd has no public event calendar; the business calendar is the only events feed.
     protected override Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct) =>
-        FromListPageAsync("https://www.vaggeryd.se/naringsliv-och-arbete/kalender-for-naringslivet.html",
-            @"/naringsliv-och-arbete/kalender-for-naringslivet/kalender-for-naringslivet/[^""]+");
+        FromSitemapAsync("https://www.vaggeryd.se/sitemap1.xml.gz",
+            u => u.Contains("/uppleva-och-gora/uplev-vaggeryds--kommun/") ||
+                 u.Contains("/uppleva-och-gora/upplev-vaggeryds--kommun/"));
 }
