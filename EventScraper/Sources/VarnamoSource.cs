@@ -30,7 +30,7 @@ public class VarnamoSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var infoJson = await _loader.GetStringAsync(
             $"{ApiBase}/eventmanager/events/get-sitemap-infos/{Destination}");
@@ -45,7 +45,6 @@ public class VarnamoSource : IEventSource
 
         _logger.LogInformation("{Source}: {Count} event ids", Name, ids.Count);
 
-        var events = new List<EventInfo>();
         foreach (var chunk in ids.Chunk(BatchSize))
         {
             ct.ThrowIfCancellationRequested();
@@ -57,11 +56,9 @@ public class VarnamoSource : IEventSource
             foreach (var reco in recos)
             {
                 var ev = MapToEventInfo(reco);
-                if (ev is not null) events.Add(ev);
+                if (ev is not null) yield return ev;
             }
         }
-
-        return events;
     }
 
     private static EventInfo? MapToEventInfo(Recommendation r)

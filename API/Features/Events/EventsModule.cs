@@ -1,3 +1,4 @@
+using API.Extensions;
 using API.Modules;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,6 +9,7 @@ public class EventsModule : IModule
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<GetEventsHandler>();
+        services.AddScoped<GetEventByIdHandler>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -20,7 +22,17 @@ public class EventsModule : IModule
             CancellationToken ct) =>
         {
             var result = await handler.HandleAsync(query, ct);
-            return Results.Ok(result);
+            return result.ToHttpResult();
+        }).AllowAnonymous();
+
+        group.MapGet("/{id}", async (
+            [FromRoute] string id,
+            GetEventByIdHandler handler,
+            CancellationToken ct
+        ) =>
+        {
+            var result = await handler.HandleAsync(id, ct);
+            return result.ToHttpResult();
         }).AllowAnonymous();
     }
 }

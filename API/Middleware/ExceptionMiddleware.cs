@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Application.Activities.Core;
+using API.Core;
 
 namespace API.Middleware;
 

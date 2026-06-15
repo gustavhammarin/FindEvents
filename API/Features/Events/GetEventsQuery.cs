@@ -27,4 +27,7 @@ public class GetEventsQuery
 
     [FromQuery(Name = "source")]
     public string? Source { get; set; }
+
+    [FromQuery(Name = "place")]
+    public string? Place { get; set; }
 }
