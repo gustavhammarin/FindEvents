@@ -46,7 +46,7 @@ public class SvSource : IEventSource
 
     public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var discovered = new List<(string Url, string Municipality, DateOnly? CardDate)>();
+        var discovered = new List<(string Url, string? CardCity, DateOnly? CardDate)>();
 
         for (var page = 1; page <= MaxPages; page++)
         {
@@ -65,13 +65,10 @@ public class SvSource : IEventSource
                 var window = html.Substring(m.Index, Math.Min(600, html.Length - m.Index));
                 var cardMatch = CityDateRegex.Match(window);
 
-                var city = cardMatch.Success ? cardMatch.Groups[1].Value.Trim() : "Jönköpings län";
-                if (city.Equals("Distans", StringComparison.OrdinalIgnoreCase))
-                    city = "Jönköpings län";
-
+                var cardCity = cardMatch.Success ? cardMatch.Groups[1].Value.Trim() : null;
                 DateOnly? cardDate = cardMatch.Success && DateOnly.TryParse(cardMatch.Groups[2].Value, out var d) ? d : null;
 
-                discovered.Add((url, city, cardDate));
+                discovered.Add((url, cardCity, cardDate));
             }
         }
 
@@ -86,7 +83,7 @@ public class SvSource : IEventSource
         _logger.LogInformation("{Source}: {Total} event URLs discovered, {Existing} in DB, {New} new",
             Name, urls.Count, existing.Count, newItems.Count);
 
-        foreach (var (url, municipality, cardDate) in newItems)
+        foreach (var (url, cardCity, cardDate) in newItems)
         {
             if (ct.IsCancellationRequested) yield break;
 
@@ -103,7 +100,9 @@ public class SvSource : IEventSource
                     text.Contains("Aktiviteten är avslutad", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var extracted = await _llm.ExtractAsync(text, url, municipality, ct);
+                // Use card city as municipality hint for LLM; fall back to county name
+                var municipalityHint = cardCity ?? "Jönköpings län";
+                var extracted = await _llm.ExtractAsync(text, url, municipalityHint, ct);
                 if (extracted is null) continue;
 
                 if (extracted.StartDate is null && cardDate.HasValue)
@@ -112,6 +111,12 @@ public class SvSource : IEventSource
                 if (extracted.StartDate is null) continue;
 
                 extracted.Source = Name;
+
+                // Card city is more reliable than LLM for place on sv.se
+                // "Distans" is preserved as-is; otherwise use card city
+                if (!string.IsNullOrEmpty(cardCity))
+                    extracted.Place = cardCity;
+
                 if (string.IsNullOrEmpty(extracted.ImageUrl))
                     extracted.ImageUrl = doc.DocumentNode
                         .SelectSingleNode("//meta[@property='og:image']")

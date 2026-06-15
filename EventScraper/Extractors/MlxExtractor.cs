@@ -53,7 +53,7 @@ public class MlxExtractor : ILlmExtractor
               "startTime": "HH:mm eller null",
               "endTime": "HH:mm eller null",
               "location": "platsnamn/adress eller null",
-              "place": "stad/ort där evenemanget hålls (t.ex. Huskvarna, Värnamo), 'Distans' om det är online, eller null",
+              "place": "stad/ort där evenemanget hålls (t.ex. Huskvarna, Värnamo), 'Distans' om det är online, eller null. OBS: I adresser med formatet 'POSTNUMMER STAD, LÄN/REGION' (t.ex. '654 65 Eksjö, Jönköping' eller '331 30 Värnamo, Jönköpings län') är STAD platsen (Eksjö, Värnamo) – inte länet eller regionen som står efter kommat.",
               "municipality": "kommunen i Jönköpings län (t.ex. Jönköping, Habo, Värnamo) eller null",
               "description": "max 400 tecken eller null",
               "imageUrl": "bild-URL om den finns, annars null",
