@@ -83,6 +83,7 @@ public abstract class LlmHtmlSource : IEventSource
                 }
 
                 extracted.Source = Name;
+                extracted.Place = Municipality;
                 if (string.IsNullOrEmpty(extracted.ImageUrl))
                     extracted.ImageUrl = ExtractImage(doc);
                 extracted.ImageUrl = NormalizeUrl(extracted.ImageUrl);

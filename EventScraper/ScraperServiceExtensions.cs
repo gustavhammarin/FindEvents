@@ -40,20 +40,20 @@ public static class ScraperServiceExtensions
         services.AddScoped<ScraperPipeline>();
         services.AddHostedService<ScraperHostedService>();
 
-/*         //services.AddScoped<IEventSource, JkpgSource>();
+        services.AddScoped<IEventSource, JkpgSource>();
         services.AddScoped<IEventSource, HaboSource>();
-        //services.AddScoped<IEventSource, TranasSource>();
-        //services.AddScoped<IEventSource, VarnamoSource>();
-        //services.AddScoped<IEventSource, MullsjoSource>();
-        //services.AddScoped<IEventSource, GislavedSource>();
-        //services.AddScoped<IEventSource, AnebySource>();
-        //services.AddScoped<IEventSource, GnosjoSource>();
-        //services.AddScoped<IEventSource, VaggerydSource>();
-        //services.AddScoped<IEventSource, SavsjoSource>();
-        //services.AddScoped<IEventSource, VetlandaSource>();
-        //services.AddScoped<IEventSource, NassjoSource>();
+        services.AddScoped<IEventSource, TranasSource>();
+        services.AddScoped<IEventSource, VarnamoSource>();
+        services.AddScoped<IEventSource, MullsjoSource>();
+        services.AddScoped<IEventSource, GislavedSource>();
+        services.AddScoped<IEventSource, AnebySource>();
+        services.AddScoped<IEventSource, GnosjoSource>();
+        services.AddScoped<IEventSource, VaggerydSource>();
+        services.AddScoped<IEventSource, SavsjoSource>();
+        services.AddScoped<IEventSource, VetlandaSource>();
+        services.AddScoped<IEventSource, NassjoSource>();
         services.AddScoped<IEventSource, EksjoSource>();
-        services.AddScoped<IEventSource, SvSource>();  */
+        services.AddScoped<IEventSource, SvSource>();  
 
         return services;
     }
