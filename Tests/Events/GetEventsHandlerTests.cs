@@ -1,6 +1,6 @@
 using API.Features.Events;
-using Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Persistence;
 using Xunit;
 
@@ -18,7 +18,7 @@ public class GetEventsHandlerTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _handler = new GetEventsHandler(_db);
+        _handler = new GetEventsHandler(_db, NullLogger<GetEventsHandler>.Instance);
     }
 
     public void Dispose() => _db.Dispose();
@@ -30,7 +30,8 @@ public class GetEventsHandlerTests : IDisposable
     }
 
     private static Event MakeEvent(string id, string title, DateOnly startDate,
-        string municipality = "Jönköping", string category = "Övrigt", string location = "Centrum") =>
+        string municipality = "Jönköping", string category = "Övrigt", string location = "Centrum",
+        string? plats = null) =>
         new()
         {
             Id = id,
@@ -39,6 +40,7 @@ public class GetEventsHandlerTests : IDisposable
             Municipality = municipality,
             Category = category,
             Location = location,
+            Place = plats ?? municipality,
             Link = $"https://example.com/{id}",
             Source = "test",
         };
@@ -55,27 +57,27 @@ public class GetEventsHandlerTests : IDisposable
 
         var result = await _handler.HandleAsync(new GetEventsQuery { StartDate = today.ToString() });
 
-        Assert.Equal(2, result.Items.Count);
-        Assert.All(result.Items, e => Assert.True(e.StartDate >= today));
+        Assert.Equal(2, result.Value!.Items.Count);
+        Assert.All(result.Value.Items, e => Assert.True(e.StartDate >= today));
     }
 
     [Fact]
-    public async Task Municipality_filter_case_insensitive()
+    public async Task Place_filter_case_insensitive()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         await SeedAsync([
-            MakeEvent("1", "Jkpg event", today.AddDays(1), municipality: "Jönköping"),
-            MakeEvent("2", "Nassjo event", today.AddDays(1), municipality: "Nässjö"),
+            MakeEvent("1", "Jkpg event", today.AddDays(1), plats: "Jönköping"),
+            MakeEvent("2", "Huskvarna event", today.AddDays(1), plats: "Huskvarna"),
         ]);
 
         var result = await _handler.HandleAsync(new GetEventsQuery
         {
-            Municipality = "jönköping",
+            Place = "jönköping",
             StartDate = today.ToString()
         });
 
-        Assert.Single(result.Items);
-        Assert.Equal("Jönköping", result.Items[0].Municipality);
+        Assert.Single(result.Value!.Items);
+        Assert.Equal("Jönköping", result.Value.Items[0].Place);
     }
 
     [Fact]
@@ -94,8 +96,8 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(2, result.Items.Count);
-        Assert.All(result.Items, e => Assert.Equal("Musik & Konsert", e.Category));
+        Assert.Equal(2, result.Value!.Items.Count);
+        Assert.All(result.Value.Items, e => Assert.Equal("Musik & Konsert", e.Category));
     }
 
     [Fact]
@@ -113,7 +115,7 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(2, result.Value!.Items.Count);
     }
 
     [Fact]
@@ -129,8 +131,8 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(5, result.Items.Count);
-        Assert.NotNull(result.NextCursor);
+        Assert.Equal(5, result.Value!.Items.Count);
+        Assert.NotNull(result.Value.NextCursor);
     }
 
     [Fact]
@@ -146,8 +148,8 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(3, result.Items.Count);
-        Assert.Null(result.NextCursor);
+        Assert.Equal(3, result.Value!.Items.Count);
+        Assert.Null(result.Value.NextCursor);
     }
 
     [Fact]
@@ -163,19 +165,19 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(4, page1.Items.Count);
-        Assert.NotNull(page1.NextCursor);
+        Assert.Equal(4, page1.Value!.Items.Count);
+        Assert.NotNull(page1.Value.NextCursor);
 
         var page2 = await _handler.HandleAsync(new GetEventsQuery
         {
             PageSize = 4,
             StartDate = today.ToString(),
-            CursorStartDate = page1.NextCursor!.StartDate.ToString(),
-            CursorId = page1.NextCursor.Id
+            CursorStartDate = page1.Value.NextCursor!.StartDate.ToString(),
+            CursorId = page1.Value.NextCursor.Id
         });
 
-        Assert.Equal(4, page2.Items.Count);
-        Assert.DoesNotContain(page2.Items, e => page1.Items.Any(p => p.Id == e.Id));
+        Assert.Equal(4, page2.Value!.Items.Count);
+        Assert.DoesNotContain(page2.Value.Items, e => page1.Value.Items.Any(p => p.Id == e.Id));
     }
 
     [Fact]
@@ -191,26 +193,26 @@ public class GetEventsHandlerTests : IDisposable
             StartDate = today.ToString()
         });
 
-        Assert.Equal(50, result.Items.Count);
-        Assert.NotNull(result.NextCursor);
+        Assert.Equal(50, result.Value!.Items.Count);
+        Assert.NotNull(result.Value.NextCursor);
     }
 
     [Fact]
-    public async Task Municipality_partial_match_works()
+    public async Task Place_partial_match_works()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         await SeedAsync([
-            MakeEvent("1", "A", today.AddDays(1), municipality: "Jönköping"),
-            MakeEvent("2", "B", today.AddDays(1), municipality: "Nässjö"),
+            MakeEvent("1", "A", today.AddDays(1), plats: "Jönköping"),
+            MakeEvent("2", "B", today.AddDays(1), plats: "Huskvarna"),
         ]);
 
         var result = await _handler.HandleAsync(new GetEventsQuery
         {
-            Municipality = "köping",
+            Place = "köping",
             StartDate = today.ToString()
         });
 
-        Assert.Single(result.Items);
+        Assert.Single(result.Value!.Items);
     }
 
     [Fact]
@@ -218,8 +220,8 @@ public class GetEventsHandlerTests : IDisposable
     {
         var result = await _handler.HandleAsync(new GetEventsQuery());
 
-        Assert.Empty(result.Items);
-        Assert.Null(result.NextCursor);
+        Assert.Empty(result.Value!.Items);
+        Assert.Null(result.Value.NextCursor);
     }
 
     [Fact]
@@ -235,6 +237,6 @@ public class GetEventsHandlerTests : IDisposable
 
         var result = await _handler.HandleAsync(new GetEventsQuery { StartDate = today.ToString() });
 
-        Assert.Equal(["a", "c", "b"], result.Items.Select(e => e.Id).ToArray());
+        Assert.Equal(["a", "c", "b"], result.Value!.Items.Select(e => e.Id).ToArray());
     }
 }

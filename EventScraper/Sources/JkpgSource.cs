@@ -23,31 +23,29 @@ public class JkpgSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var html = await _loader.GetStringAsync(EventListUrl);
         if (string.IsNullOrEmpty(html))
         {
             _logger.LogWarning("{Source}: failed to load event list", Name);
-            return [];
+            yield break;
         }
 
         var json = ExtractEmbeddedJson(html);
         if (json is null)
         {
             _logger.LogWarning("{Source}: no embedded JSON found", Name);
-            return [];
+            yield break;
         }
 
         var data = JsonConvert.DeserializeObject<JkpgApiResponse>(json);
-        if (data?.blocks is null || data.blocks.Count == 0) return [];
+        if (data?.blocks is null || data.blocks.Count == 0) yield break;
 
         _logger.LogInformation("{Source}: found {Count} events", Name, data.blocks.Count);
 
-        return data.blocks
-            .Where(b => !string.IsNullOrEmpty(b.link))
-            .Select(MapToEventInfo)
-            .ToList();
+        foreach (var block in data.blocks.Where(b => !string.IsNullOrEmpty(b.link)))
+            yield return MapToEventInfo(block);
     }
 
     private static string? ExtractEmbeddedJson(string html)

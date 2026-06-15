@@ -29,14 +29,14 @@ public abstract class LokalAppenSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         string json;
         try { json = await _loader.GetStringAsync($"https://api.lokal.app/api/eventsforapp?app_id={AppId}"); }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "{Source}: API request failed", Name);
-            return [];
+            yield break;
         }
 
         var items = JsonSerializer.Deserialize<List<LokalEvent>>(json,
@@ -45,11 +45,11 @@ public abstract class LokalAppenSource : IEventSource
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var events = items
             .Where(e => !string.IsNullOrWhiteSpace(e.Title) && DateOnly.TryParse(e.Date, out var d) && d >= today)
-            .Select(Map)
             .ToList();
 
         _logger.LogInformation("{Source}: {Count} upcoming events", Name, events.Count);
-        return events;
+        foreach (var ev in events)
+            yield return Map(ev);
     }
 
     private EventInfo Map(LokalEvent e) => new()

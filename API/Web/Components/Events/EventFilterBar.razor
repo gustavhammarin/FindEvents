@@ -1,0 +1,126 @@
+@implements IDisposable
+
+<div class="filter-bar">
+    <div class="fb-search">
+        <svg class="fb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+            type="text"
+            class="fb-search-input"
+            placeholder="Sök evenemang..."
+            value="@_search"
+            @oninput="OnSearchInput"
+            autocomplete="off"
+            spellcheck="false" />
+    </div>
+
+    <div class="fb-sep"></div>
+
+    <DropdownSelect
+        Options="Places"
+        Value="@_place"
+        Placeholder="Plats"
+        ValueChanged="OnPlaceChanged" />
+
+    <div class="fb-sep"></div>
+
+    <DropdownSelect
+        Options="Municipalities"
+        Value="@_municipality"
+        Placeholder="Kommun"
+        ValueChanged="OnMunicipalityChanged" />
+
+    <div class="fb-sep"></div>
+
+    <DropdownSelect
+        Options="Categories"
+        Value="@_category"
+        Placeholder="Kategori"
+        ValueChanged="OnCategoryChanged" />
+
+    <div class="fb-sep"></div>
+
+    <DatePicker Value="@_date" ValueChanged="OnDateChanged" />
+
+    @if (HasActiveFilters)
+    {
+        <button class="fb-clear" type="button" @onclick="ClearFilters" aria-label="Rensa alla filter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+        </button>
+    }
+</div>
+
+<p class="fb-count">@EventCount evenemang</p>
+
+@code {
+    [Parameter] public IEnumerable<string> Categories { get; set; } = [];
+    [Parameter] public IEnumerable<string> Places { get; set; } = [];
+    [Parameter] public IEnumerable<string> Municipalities { get; set; } = [];
+    [Parameter] public int EventCount { get; set; }
+    [Parameter] public EventCallback<FilterState> OnFiltersChanged { get; set; }
+
+    [Parameter] public string InitialSearch { get; set; } = "";
+    [Parameter] public string InitialCategory { get; set; } = "";
+    [Parameter] public string InitialPlace { get; set; } = "";
+    [Parameter] public string InitialMunicipality { get; set; } = "";
+    [Parameter] public string InitialDate { get; set; } = "";
+
+    private string _search = "";
+    private string _category = "";
+    private string _place = "";
+    private string _municipality = "";
+    private string _date = "";
+
+    protected override void OnInitialized()
+    {
+        _search = InitialSearch;
+        _category = InitialCategory;
+        _place = InitialPlace;
+        _municipality = InitialMunicipality;
+        _date = InitialDate;
+    }
+
+    private System.Threading.Timer? _debounce;
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrEmpty(_search) || !string.IsNullOrEmpty(_category) ||
+        !string.IsNullOrEmpty(_place) || !string.IsNullOrEmpty(_municipality) ||
+        !string.IsNullOrEmpty(_date);
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await FireChange();
+                StateHasChanged();
+            });
+        }, null, 350, Timeout.Infinite);
+    }
+
+    private async Task OnPlaceChanged(string val) { _place = val; await FireChange(); }
+    private async Task OnMunicipalityChanged(string val) { _municipality = val; await FireChange(); }
+    private async Task OnCategoryChanged(string val) { _category = val; await FireChange(); }
+    private async Task OnDateChanged(string val) { _date = val; await FireChange(); }
+
+    private async Task ClearFilters()
+    {
+        _search = "";
+        _category = "";
+        _place = "";
+        _municipality = "";
+        _date = "";
+        await FireChange();
+    }
+
+    private Task FireChange() =>
+        OnFiltersChanged.InvokeAsync(new FilterState(_search, _category, _place, _municipality, _date));
+
+    public void Dispose() => _debounce?.Dispose();
+}

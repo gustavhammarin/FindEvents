@@ -19,7 +19,7 @@ public class MistralExtractor : ILlmExtractor
     private const int MaxTextLength = 6000;
 
     private static readonly string CategoryList =
-        string.Join(" | ", EventCategorizer.Categories);
+        string.Join(" | ", EventCategories.Categories);
 
     public MistralExtractor(HttpClient http, IOptions<MistralSettings> settings, ILogger<MistralExtractor> logger)
     {
@@ -50,11 +50,15 @@ public class MistralExtractor : ILlmExtractor
               "endDate": "YYYY-MM-DD eller null",
               "startTime": "HH:mm eller null",
               "endTime": "HH:mm eller null",
-              "location": "plats eller null",
+              "location": "platsnamn/adress eller null",
+              "place": "stad/ort där evenemanget hålls (t.ex. Huskvarna, Värnamo), 'Distans' om det är online, eller null",
+              "municipality": "kommunen i Jönköpings län (t.ex. Jönköping, Habo, Värnamo) eller null",
               "description": "max 400 tecken eller null",
               "imageUrl": "bild-URL om den finns, annars null",
               "category": "exakt en av: {{CategoryList}}"
             }
+
+            Ledtråd: evenemanget är troligen i eller nära kommunen "{{municipality}}".
 
             Text:
             {{truncated}}
@@ -106,11 +110,12 @@ public class MistralExtractor : ILlmExtractor
                 StartTime = ParseTime(extracted.StartTime),
                 EndTime = ParseTime(extracted.EndTime),
                 Location = extracted.Location ?? "",
+                Place = string.IsNullOrWhiteSpace(extracted.Place) ? null : extracted.Place.Trim(),
+                Municipality = EventMunicipalities.Normalize(extracted.Municipality, municipality),
                 Description = extracted.Description,
                 ImageUrl = extracted.ImageUrl ?? "",
                 Link = sourceUrl,
                 Source = new Uri(sourceUrl).Host,
-                Municipality = municipality,
                 Category = EventCategorizer.Normalize(extracted.Category)
                     ?? EventCategorizer.Categorize(extracted.Title, extracted.Description)
             };
@@ -191,6 +196,8 @@ public class MistralExtractor : ILlmExtractor
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
         public string? Location { get; set; }
+        public string? Place { get; set; }
+        public string? Municipality { get; set; }
         public string? Description { get; set; }
         public string? ImageUrl { get; set; }
         public string? Category { get; set; }

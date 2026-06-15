@@ -44,7 +44,7 @@ public class SvSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var discovered = new List<(string Url, string Municipality, DateOnly? CardDate)>();
 
@@ -86,10 +86,11 @@ public class SvSource : IEventSource
         _logger.LogInformation("{Source}: {Total} event URLs discovered, {Existing} in DB, {New} new",
             Name, urls.Count, existing.Count, newItems.Count);
 
-        var events = new List<EventInfo>();
         foreach (var (url, municipality, cardDate) in newItems)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested) yield break;
+
+            EventInfo? ev = null;
             try
             {
                 var doc = await _loader.LoadHtmlAsync(url);
@@ -102,30 +103,28 @@ public class SvSource : IEventSource
                     text.Contains("Aktiviteten är avslutad", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var ev = await _llm.ExtractAsync(text, url, municipality, ct);
-                if (ev is null) continue;
+                var extracted = await _llm.ExtractAsync(text, url, municipality, ct);
+                if (extracted is null) continue;
 
-                // Use card date as fallback when LLM can't parse complex course schedules
-                if (ev.StartDate is null && cardDate.HasValue)
-                    ev.StartDate = cardDate;
+                if (extracted.StartDate is null && cardDate.HasValue)
+                    extracted.StartDate = cardDate;
 
-                // Still skip if we have no date at all
-                if (ev.StartDate is null) continue;
+                if (extracted.StartDate is null) continue;
 
-                ev.Source = Name;
-                if (string.IsNullOrEmpty(ev.ImageUrl))
-                    ev.ImageUrl = doc.DocumentNode
+                extracted.Source = Name;
+                if (string.IsNullOrEmpty(extracted.ImageUrl))
+                    extracted.ImageUrl = doc.DocumentNode
                         .SelectSingleNode("//meta[@property='og:image']")
                         ?.GetAttributeValue("content", "") ?? "";
 
-                events.Add(ev);
+                ev = extracted;
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 _logger.LogWarning(ex, "{Source}: failed to process {Url}", Name, url);
             }
-        }
 
-        return events;
+            if (ev is not null) yield return ev;
+        }
     }
 }

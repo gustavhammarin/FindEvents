@@ -1,0 +1,72 @@
+@implements IDisposable
+
+<div class="dd-root @(_open ? "dd-open" : "")" @onfocusin="CancelClose" @onfocusout="ScheduleClose">
+    <button type="button" class="dd-toggle @(!string.IsNullOrEmpty(Value) ? "dd-active" : "")" @onclick="Toggle">
+        <span>@(string.IsNullOrEmpty(Value) ? Placeholder : Value)</span>
+        <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6"/>
+        </svg>
+    </button>
+    @if (_open)
+    {
+        <div class="dd-menu" role="listbox">
+            @if (!string.IsNullOrEmpty(Value))
+            {
+                <button type="button" class="dd-option dd-option-reset" role="option" @onclick='() => Select("")'>
+                    Alla
+                </button>
+                <div class="dd-divider"></div>
+            }
+            @foreach (var opt in Options)
+            {
+                var selected = opt == Value;
+                <button type="button" class="dd-option @(selected ? "dd-option-selected" : "")" role="option" aria-selected="@selected" @onclick="() => Select(opt)">
+                    <span>@opt</span>
+                    @if (selected)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IEnumerable<string> Options { get; set; } = [];
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "Välj...";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private bool _open;
+    private System.Threading.Timer? _closeTimer;
+
+    private void Toggle() => _open = !_open;
+
+    private void CancelClose()
+    {
+        _closeTimer?.Dispose();
+        _closeTimer = null;
+    }
+
+    private void ScheduleClose()
+    {
+        _closeTimer?.Dispose();
+        _closeTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() => { _open = false; StateHasChanged(); });
+        }, null, 200, Timeout.Infinite);
+    }
+
+    private async Task Select(string val)
+    {
+        _open = false;
+        CancelClose();
+        if (val != Value)
+            await ValueChanged.InvokeAsync(val);
+    }
+
+    public void Dispose() => _closeTimer?.Dispose();
+}
