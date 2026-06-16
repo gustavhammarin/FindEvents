@@ -7,20 +7,21 @@
 
 <PageTitle>Evenemang i Jönköpings län | FindEvents</PageTitle>
 <HeadContent>
-    <meta name="description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    <meta name="description"
+          content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer."/>
 </HeadContent>
 
 <div class="sticky-filters">
     <div class="site-container">
-        <EventFilterBar
+        <NewEventFilterBar
             Categories="_categories"
             Places="_places"
             EventCount="_events.Count"
             InitialSearch="@_filters.Search"
-            InitialCategory="@_filters.Category"
-            InitialPlace="@_filters.Place"
+            InitialCategories="@_filters.Categories"
+            InitialPlaces="@_filters.Places"
             InitialDate="@_filters.Date"
-            OnFiltersChanged="HandleFiltersChanged" />
+            OnFiltersChanged="HandleFiltersChanged"/>
     </div>
 </div>
 
@@ -40,8 +41,8 @@
             @foreach (var e in _events)
             {
                 var hasImg = !string.IsNullOrEmpty(e.ImageUrl)
-                    && !e.ImageUrl.Contains("placeholder")
-                    && e.ImageUrl.StartsWith("http");
+                                 && !e.ImageUrl.Contains("placeholder")
+                                 && e.ImageUrl.StartsWith("http");
                 var date = e.StartDate.HasValue
                     ? e.StartDate.Value.ToDateTime(TimeOnly.MinValue).ToString("d MMM", new System.Globalization.CultureInfo("sv-SE"))
                     : null;
@@ -54,12 +55,13 @@
                     <div class="event-card-image">
                         @if (hasImg)
                         {
-                            <img src="@e.ImageUrl" alt="@e.Title" loading="lazy" />
+                            <img src="@e.ImageUrl" alt="@e.Title" loading="lazy"/>
                         }
                         else
                         {
                             <div class="event-card-placeholder">
-                                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
+                                     aria-hidden="true">
                                     <rect x="3" y="4" width="18" height="18" rx="2"/>
                                     <path d="M16 2v4M8 2v4M3 10h18"/>
                                 </svg>
@@ -76,7 +78,8 @@
                             @if (date is not null)
                             {
                                 <div class="event-meta-item">
-                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
                                         <rect x="3" y="4" width="18" height="18" rx="2"/>
                                         <path d="M16 2v4M8 2v4M3 10h18"/>
                                     </svg>
@@ -86,7 +89,8 @@
                             @if (!string.IsNullOrEmpty(loc))
                             {
                                 <div class="event-meta-item">
-                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                         aria-hidden="true">
                                         <path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/>
                                         <circle cx="12" cy="10" r="2"/>
                                     </svg>
@@ -123,7 +127,7 @@
     private bool _loading = true;
     private bool _loadingMore;
 
-    private FilterState _filters = new();
+    private NewFilterState _filters = new();
     private int _take = PageSize;
 
     private string? _pendingUrl;
@@ -134,12 +138,15 @@
         var uri = new Uri(Nav.Uri);
         var q = QueryHelpers.ParseQuery(uri.Query);
         string Get(string k) => q.TryGetValue(k, out var v) ? v.ToString() : "";
+        List<string> GetList(string k) => q.TryGetValue(k, out var v) ? v.ToArray().ToList() : [];
 
-        _filters = new FilterState(
-            Search: Get("q"),
-            Category: Get("cat"),
-            Place: Get("plats"),
-            Date: Get("datum"));
+        _filters = new NewFilterState
+        {
+            Search = Get("q"),
+            Categories = GetList("cat"),
+            Places = GetList("plats"),
+            Date = Get("datum")
+        };
 
         if (q.TryGetValue("ta", out var taRaw) && int.TryParse(taRaw, out var ta) && ta > 0)
         {
@@ -162,6 +169,7 @@
             _pendingUrl = null;
             await JS.InvokeVoidAsync("history.replaceState", null, "", url);
         }
+
         if (_triggerRestore)
         {
             _triggerRestore = false;
@@ -169,7 +177,7 @@
         }
     }
 
-    private async Task HandleFiltersChanged(FilterState state)
+    private async Task HandleFiltersChanged(NewFilterState state)
     {
         _filters = state;
         _take = PageSize;
@@ -200,8 +208,8 @@
         {
             PageSize = append ? PageSize : _take,
             Search = NullIfEmpty(_filters.Search),
-            Category = NullIfEmpty(_filters.Category),
-            Place = NullIfEmpty(_filters.Place),
+            Categories = _filters.Categories,
+            Places = _filters.Places,
             StartDate = NullIfEmpty(_filters.Date),
             CursorStartDate = append ? _nextCursor?.StartDate.ToString("yyyy-MM-dd") : null,
             CursorId = append ? _nextCursor?.Id : null,
@@ -227,8 +235,9 @@
     {
         var parts = new List<string>();
         if (!string.IsNullOrEmpty(_filters.Search)) parts.Add("q=" + Uri.EscapeDataString(_filters.Search));
-        if (!string.IsNullOrEmpty(_filters.Category)) parts.Add("cat=" + Uri.EscapeDataString(_filters.Category));
-        if (!string.IsNullOrEmpty(_filters.Place)) parts.Add("plats=" + Uri.EscapeDataString(_filters.Place));
+        if (_filters.Categories.Count > 0)
+            _filters.Categories.ForEach(c => parts.Add("cat=" + Uri.EscapeDataString(c)));
+        if (_filters.Places.Count > 0) _filters.Places.ForEach(p => parts.Add("plats=" + Uri.EscapeDataString(p)));
         if (!string.IsNullOrEmpty(_filters.Date)) parts.Add("datum=" + _filters.Date);
         parts.Add("ta=" + _take);
         return "/evenemang?" + string.Join("&", parts);
@@ -236,4 +245,5 @@
 
     private static string? NullIfEmpty(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s;
+
 }

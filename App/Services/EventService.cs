@@ -29,16 +29,14 @@ public class EventService(AppDbContext db, ILogger<EventService> logger)
                                  (e.StartDate == cd && string.Compare(e.Id, filter.CursorId) > 0));
             }
 
-if (!string.IsNullOrWhiteSpace(filter.Category) &&
-                EventCategories.Categories.Contains(filter.Category))
+            if (filter.Categories.Count > 0)
             {
-                q = q.Where(e => e.Category == filter.Category);
+                q = q.Where(e => filter.Categories.Contains(e.Category));
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.Place))
+            if (filter.Places.Count > 0)
             {
-                var place = filter.Place.Trim().ToLower();
-                q = q.Where(e => e.Place != null && e.Place.ToLower() == place);
+                q = q.Where(e => e.Place != null && filter.Places.Contains(e.Place));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Search))

@@ -1,0 +1,117 @@
+@implements IDisposable
+
+<div class="filter-bar">
+    <div class="fb-search">
+        <svg class="fb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+            type="text"
+            class="fb-search-input"
+            placeholder="Sök evenemang..."
+            value="@_search"
+            @oninput="OnSearchInput"
+            autocomplete="off"
+            spellcheck="false" />
+    </div>
+
+    <div class="fb-sep"></div>
+
+    <MultiSelectDropDown
+        Options="Places"
+        SelectedValues="@_places"
+        Placeholder="Plats"
+        SelectedValuesChanged="OnPlacesChanged" />
+
+    <div class="fb-sep"></div>
+
+    <MultiSelectDropDown
+        Options="Categories"
+        SelectedValues="@_categories"
+        Placeholder="Kategori"
+        SelectedValuesChanged="OnCategoriesChanged" />
+
+    <div class="fb-sep"></div>
+
+    <DatePicker Value="@_date" ValueChanged="OnDateChanged" />
+
+    @if (HasActiveFilters)
+    {
+        <button class="fb-clear" type="button" @onclick="ClearFilters" aria-label="Rensa alla filter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+        </button>
+    }
+</div>
+
+<p class="fb-count">@EventCount evenemang</p>
+
+@code {
+    [Parameter] public IEnumerable<string> Categories { get; set; } = [];
+    [Parameter] public IEnumerable<string> Places { get; set; } = [];
+    [Parameter] public int EventCount { get; set; }
+    [Parameter] public EventCallback<NewFilterState> OnFiltersChanged { get; set; }
+
+    [Parameter] public string InitialSearch { get; set; } = "";
+    [Parameter] public List<string> InitialCategories { get; set; } = [];
+    [Parameter] public List<string> InitialPlaces { get; set; } = [];
+    [Parameter] public string InitialDate { get; set; } = "";
+
+    private string _search = "";
+    private List<string> _categories = [];
+    private List<string> _places = [];
+    private string _date = "";
+
+    protected override void OnInitialized()
+    {
+        _search = InitialSearch;
+        _categories = InitialCategories;
+        _places = InitialPlaces;
+        _date = InitialDate;
+    }
+
+    private System.Threading.Timer? _debounce;
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrEmpty(_search) || _categories.Any() ||
+        _places.Any() || !string.IsNullOrEmpty(_date);
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await FireChange();
+                StateHasChanged();
+            });
+        }, null, 350, Timeout.Infinite);
+    }
+
+    private async Task OnPlacesChanged(List<string> val) { _places = val; await FireChange(); }
+    private async Task OnCategoriesChanged(List<string> val) { _categories = val; await FireChange(); }
+    private async Task OnDateChanged(string val) { _date = val; await FireChange(); }
+
+    private async Task ClearFilters()
+    {
+        _search = "";
+        _categories = [];
+        _places = [];
+        _date = "";
+        await FireChange();
+    }
+
+    private Task FireChange() =>
+        OnFiltersChanged.InvokeAsync(new NewFilterState
+        {
+            Search =  _search,
+            Categories = _categories,
+            Places = _places,
+            Date = _date
+        });
+
+    public void Dispose() => _debounce?.Dispose();
+}
