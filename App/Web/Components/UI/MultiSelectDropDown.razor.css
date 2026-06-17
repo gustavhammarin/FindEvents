@@ -47,7 +47,8 @@
 .dd-menu {
     position: absolute;
     top: calc(100% + 6px);
-    left: 0;
+    left: 50%;
+    margin-left: calc(-6rem);
     min-width: 12rem;
     max-height: 18rem;
     overflow-y: auto;
