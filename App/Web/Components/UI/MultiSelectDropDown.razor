@@ -9,7 +9,7 @@
         <div class="dd-backdrop" @onclick="Close"></div>
     }
     <button type="button" class="dd-toggle @(SelectedValues.Any() ? "dd-active" : "")" @onclick="Toggle">
-        <span>@(!SelectedValues.Any() ? Placeholder : SelectedValues.Count())</span>
+        <span>@(!SelectedValues.Any() ? Placeholder : $"{Placeholder} ({SelectedValues.Count()})")</span>
         <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
              aria-hidden="true">
             <path d="m6 9 6 6 6-6"/>
@@ -20,7 +20,7 @@
         <div class="dd-menu" role="listbox">
             @if (SelectedValues.Any())
             {
-                <button type="button" class="dd-option dd-option-reset" role="option" @onclick='() => SelectedValues = []'>
+                <button type="button" class="dd-option dd-option-reset" role="option" @onclick='ClearSelectedValues'>
                     Alla
                 </button>
                 <div class="dd-divider"></div>
@@ -78,6 +78,12 @@
             SelectedValues.Add(opt);
             await SelectedValuesChanged.InvokeAsync(SelectedValues);
         }
+    }
+
+    private async Task ClearSelectedValues()
+    {
+        SelectedValues = [];
+        await SelectedValuesChanged.InvokeAsync(SelectedValues);
     }
 
     private async Task Toggle()
