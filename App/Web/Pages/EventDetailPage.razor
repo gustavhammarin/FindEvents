@@ -1,5 +1,7 @@
 @page "/evenemang/{Id}"
+@rendermode InteractiveServer
 @inject EventService Events
+@inject NavigationManager Nav
 
 @if (_event is null)
 {
@@ -18,15 +20,21 @@ else
 {
     <PageTitle>@_event.Title | FindEvents</PageTitle>
     <HeadContent>
+        <link rel="canonical" href="@_canonicalUrl" />
         <meta name="description" content="@_description" />
-        <meta property="og:title" content="@_event.Title" />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="@_canonicalUrl" />
+        <meta property="og:title" content="@_event.Title | FindEvents" />
         <meta property="og:description" content="@_description" />
         @if (_hasImage)
         {
             <meta property="og:image" content="@_event.ImageUrl" />
+            <meta name="twitter:image" content="@_event.ImageUrl" />
         }
-        <meta property="og:type" content="event" />
-        <meta name="robots" content="index, follow" />
+        <meta name="twitter:title" content="@_event.Title | FindEvents" />
+        <meta name="twitter:description" content="@_description" />
+        <script type="application/ld+json">@((MarkupString)_jsonLd)</script>
     </HeadContent>
 
     <div class="detail-wrapper">
@@ -108,6 +116,61 @@ else
                 </a>
             </div>
         </article>
+
+        @if (_similar.Count > 0)
+        {
+            <section class="similar-section">
+                <h2 class="similar-heading">Liknande evenemang</h2>
+                <div class="similar-grid">
+                    @foreach (var e in _similar)
+                    {
+                        var hasImg = !string.IsNullOrEmpty(e.ImageUrl)
+                            && !e.ImageUrl.Contains("placeholder")
+                            && e.ImageUrl.StartsWith("http");
+                        var date = e.StartDate.HasValue
+                            ? e.StartDate.Value.ToDateTime(TimeOnly.MinValue)
+                                .ToString("d MMM", new System.Globalization.CultureInfo("sv-SE"))
+                            : null;
+                        var loc = e.Location ?? e.Municipality;
+
+                        <a href="/evenemang/@e.Id" class="similar-card">
+                            <div class="similar-card-image">
+                                @if (hasImg)
+                                {
+                                    <img src="@e.ImageUrl" alt="@e.Title" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <div class="similar-card-placeholder">
+                                        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                            <path d="M16 2v4M8 2v4M3 10h18"/>
+                                        </svg>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(e.Category))
+                                {
+                                    <span class="similar-card-category">@e.Category</span>
+                                }
+                            </div>
+                            <div class="similar-card-body">
+                                <p class="similar-card-title">@e.Title</p>
+                                <div class="similar-card-meta">
+                                    @if (date is not null)
+                                    {
+                                        <span>@date</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(loc))
+                                    {
+                                        <span class="similar-card-loc">@loc</span>
+                                    }
+                                </div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
     </div>
 }
 
@@ -115,17 +178,23 @@ else
     [Parameter] public string Id { get; set; } = "";
 
     private EventDto? _event;
+    private List<MinimalEventDto> _similar = [];
     private bool _hasImage;
     private string? _description;
     private string? _dateLabel;
     private string? _timeLabel;
     private string? _locationText;
     private string _externalLink = "#";
+    private string _canonicalUrl = "";
+    private string _jsonLd = "{}";
 
     protected override async Task OnInitializedAsync()
     {
         _event = await Events.GetByIdAsync(Id);
         if (_event is null) return;
+
+        _canonicalUrl = Nav.BaseUri.TrimEnd('/') + "/evenemang/" + Id;
+        _similar = await Events.GetSimilarEventsAsync(Id, count: 6);
 
         _hasImage = !string.IsNullOrEmpty(_event.ImageUrl)
             && !_event.ImageUrl.Contains("placeholder")
@@ -167,5 +236,49 @@ else
         _externalLink = _event.Link.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? _event.Link
             : $"https://jkpg.com{_event.Link}";
+
+        _jsonLd = BuildJsonLd();
     }
+
+    private string BuildJsonLd()
+    {
+        if (_event is null) return "{}";
+
+        var svSE = new CultureInfo("sv-SE");
+        var startIso = _event.StartDate.HasValue
+            ? _event.StartDate.Value.ToDateTime(_event.StartTime ?? TimeOnly.MinValue)
+                .ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture)
+            : null;
+        var endIso = _event.EndDate.HasValue
+            ? _event.EndDate.Value.ToDateTime(_event.EndTime ?? TimeOnly.MinValue)
+                .ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture)
+            : null;
+
+        var name = JsonEscape(_event.Title);
+        var desc = JsonEscape(_description ?? "");
+        var loc = JsonEscape(_event.Location ?? _event.Municipality ?? "");
+        var municipality = JsonEscape(_event.Municipality ?? "Jönköping");
+        var url = JsonEscape(_canonicalUrl);
+        var img = _hasImage ? JsonEscape(_event.ImageUrl ?? "") : "";
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("{\"@context\":\"https://schema.org\",\"@type\":\"Event\"");
+        sb.Append($",\"name\":\"{name}\"");
+        if (startIso != null) sb.Append($",\"startDate\":\"{startIso}\"");
+        if (endIso != null) sb.Append($",\"endDate\":\"{endIso}\"");
+        if (!string.IsNullOrEmpty(desc)) sb.Append($",\"description\":\"{desc}\"");
+        if (!string.IsNullOrEmpty(img)) sb.Append($",\"image\":\"{img}\"");
+        sb.Append($",\"url\":\"{url}\"");
+        sb.Append($",\"location\":{{\"@type\":\"Place\",\"name\":\"{(string.IsNullOrEmpty(loc) ? municipality : loc)}\",\"address\":{{\"@type\":\"PostalAddress\",\"addressLocality\":\"{municipality}\",\"addressRegion\":\"Jönköpings län\",\"addressCountry\":\"SE\"}}}}");
+        sb.Append(",\"eventStatus\":\"https://schema.org/EventScheduled\"");
+        sb.Append(",\"eventAttendanceMode\":\"https://schema.org/OfflineEventAttendanceMode\"");
+        if (!string.IsNullOrEmpty(_event.Category)) sb.Append($",\"keywords\":\"{JsonEscape(_event.Category)}\"");
+        sb.Append(",\"organizer\":{\"@type\":\"Organization\",\"name\":\"FindEvents\",\"url\":\"https://findevents.se\"}");
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    private static string JsonEscape(string s) =>
+        s.Replace("\\", "\\\\").Replace("\"", "\\\"")
+         .Replace("\n", "\\n").Replace("\r", "").Replace("\t", "\\t");
 }
