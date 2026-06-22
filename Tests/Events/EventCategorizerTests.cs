@@ -1,4 +1,4 @@
-using EventScraper.Categorization;
+using App.Scraper.Categorization;
 using Xunit;
 
 namespace Tests.Events;

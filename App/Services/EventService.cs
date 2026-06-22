@@ -1,6 +1,7 @@
-using EventScraper.Categorization;
+using App.Persistence;
+using App.Scraper.Categorization;
 using Microsoft.EntityFrameworkCore;
-using Persistence;
+using Pgvector.EntityFrameworkCore;
 
 namespace App.Services;
 
@@ -14,7 +15,6 @@ public class EventService(AppDbContext db, ILogger<EventService> logger)
         try
         {
             var pageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
-
             var startDate = DateOnly.TryParse(filter.StartDate, out var sd)
                 ? sd
                 : DateOnly.FromDateTime(DateTime.UtcNow);
@@ -30,14 +30,10 @@ public class EventService(AppDbContext db, ILogger<EventService> logger)
             }
 
             if (filter.Categories.Count > 0)
-            {
                 q = q.Where(e => filter.Categories.Contains(e.Category));
-            }
 
             if (filter.Places.Count > 0)
-            {
                 q = q.Where(e => e.Place != null && filter.Places.Contains(e.Place));
-            }
 
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
@@ -71,6 +67,32 @@ public class EventService(AppDbContext db, ILogger<EventService> logger)
         {
             logger.LogError(ex, "GetEventsAsync failed. Filter={@Filter}", filter);
             return new PagedList<MinimalEventDto, EventCursor?> { Items = [], NextCursor = null };
+        }
+    }
+
+    public async Task<List<MinimalEventDto>> GetSimilarEventsAsync(
+        string eventId, int count = 6, CancellationToken ct = default)
+    {
+        try
+        {
+            var ev = await db.Events.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == eventId && e.Embedding != null, ct);
+
+            if (ev?.Embedding is null) return [];
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            return await db.Events.AsNoTracking()
+                .Where(e => e.Id != eventId && e.Embedding != null && e.StartDate >= today)
+                .OrderBy(e => e.Embedding!.CosineDistance(ev.Embedding))
+                .Take(count)
+                .Select(e => MinimalEventDto.FromEntity(e))
+                .ToListAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "GetSimilarEventsAsync failed for eventId={Id}", eventId);
+            return [];
         }
     }
 
