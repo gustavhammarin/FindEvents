@@ -4,11 +4,19 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @using Microsoft.AspNetCore.WebUtilities
+@using System.Globalization
 
 <PageTitle>Evenemang i Jönköpings län | FindEvents</PageTitle>
 <HeadContent>
-    <meta name="description"
-          content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer."/>
+    <link rel="canonical" href="@(Nav.BaseUri.TrimEnd('/') + "/evenemang")" />
+    <meta name="description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    <meta name="robots" content="@(_hasActiveFilters ? "noindex, follow" : "index, follow")" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="@(Nav.BaseUri.TrimEnd('/') + "/evenemang")" />
+    <meta property="og:title" content="Evenemang i Jönköpings län | FindEvents" />
+    <meta property="og:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    <meta name="twitter:title" content="Evenemang i Jönköpings län | FindEvents" />
+    <meta name="twitter:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
 </HeadContent>
 
 <div class="sticky-filters">
@@ -129,6 +137,10 @@
 
     private NewFilterState _filters = new();
     private int _take = PageSize;
+
+    private bool _hasActiveFilters =>
+        !string.IsNullOrEmpty(_filters.Search) || _filters.Categories.Any() ||
+        _filters.Places.Any() || !string.IsNullOrEmpty(_filters.Date);
 
     private string? _pendingUrl;
     private bool _triggerRestore;

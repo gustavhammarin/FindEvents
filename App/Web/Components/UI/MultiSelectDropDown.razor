@@ -3,7 +3,7 @@
 @inject IJSRuntime JsRuntime
 
 
-<div class="dd-root" @(_open ? "dd-open" : "")>
+<div class="@(_open ? "dd-root dd-open" : "dd-root")">
     @if (_open)
     {
         <div class="dd-backdrop" @onclick="Close"></div>

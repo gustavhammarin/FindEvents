@@ -9,8 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\App\App.csproj" />
-    <ProjectReference Include="..\Persistence\Persistence.csproj" />
-    <ProjectReference Include="..\EventScraper\EventScraper.csproj" />
   </ItemGroup>
 
   <ItemGroup>
