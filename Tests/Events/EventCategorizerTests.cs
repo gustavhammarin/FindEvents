@@ -40,8 +40,8 @@ public class EventCategorizerTests
     [Fact]
     public void Categorize_FallsBackToDefault()
     {
-        Assert.Equal(EventCategorizer.Default, EventCategorizer.Categorize("Xyzzy", "Qwerty"));
-        Assert.Equal(EventCategorizer.Default, EventCategorizer.Categorize(null, null));
+        Assert.Equal(EventCategories.Default, EventCategorizer.Categorize("Xyzzy", "Qwerty"));
+        Assert.Equal(EventCategories.Default, EventCategorizer.Categorize(null, null));
     }
 
     [Fact]

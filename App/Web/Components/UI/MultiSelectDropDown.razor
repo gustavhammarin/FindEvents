@@ -1,0 +1,128 @@
+@implements IDisposable
+@inject App.Services.PopupManager PopupManager
+@inject IJSRuntime JsRuntime
+
+
+<div class="dd-root" @(_open ? "dd-open" : "")>
+    @if (_open)
+    {
+        <div class="dd-backdrop" @onclick="Close"></div>
+    }
+    <button type="button" class="dd-toggle @(SelectedValues.Any() ? "dd-active" : "")" @onclick="Toggle">
+        <span>@(!SelectedValues.Any() ? Placeholder : $"{Placeholder} ({SelectedValues.Count()})")</span>
+        <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             aria-hidden="true">
+            <path d="m6 9 6 6 6-6"/>
+        </svg>
+    </button>
+    @if (_open)
+    {
+        <div class="dd-menu" role="listbox">
+            @if (SelectedValues.Any())
+            {
+                <button type="button" class="dd-option dd-option-reset" role="option" @onclick='ClearSelectedValues'>
+                    Alla
+                </button>
+                <div class="dd-divider"></div>
+            }
+            @foreach (var opt in Options)
+            {
+                var selected = SelectedValues.Contains(opt);
+                <button type="button" class="dd-option @(selected ? "dd-option-selected" : "")" role="option"
+                        aria-selected="@selected" @onclick="() => ToggleSelected(opt)">
+                    <span>@opt</span>
+                    @if (selected)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                             aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+
+@code {
+
+    [Parameter] public IEnumerable<string> Options { get; set; } = [];
+    [Parameter] public List<string> SelectedValues { get; set; } = [];
+    [Parameter] public string Placeholder { get; set; } = "Välj...";
+    [Parameter] public EventCallback<List<string>> SelectedValuesChanged { get; set; }
+    private bool _open;
+    private readonly Guid _id = Guid.NewGuid();
+
+    protected override void OnInitialized()
+    {
+        PopupManager.OnOpen += HandleOpen;
+    }
+
+    private void HandleOpen(Guid id) => InvokeAsync(() =>
+    {
+        if (id == _id || !_open) return;
+        _open = false;
+        StateHasChanged();
+    });
+
+    private async Task ToggleSelected(string opt)
+    {
+        if (SelectedValues.Contains(opt))
+        {
+            SelectedValues.Remove(opt);
+            await SelectedValuesChanged.InvokeAsync(SelectedValues);
+        }
+        else
+        {
+            SelectedValues.Add(opt);
+            await SelectedValuesChanged.InvokeAsync(SelectedValues);
+        }
+    }
+
+    private async Task ClearSelectedValues()
+    {
+        SelectedValues = [];
+        await SelectedValuesChanged.InvokeAsync(SelectedValues);
+    }
+
+    private async Task Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            PopupManager.Open(_id);
+            await ScrollLock();
+        }
+        else
+        {
+            await ScrollUnlock();
+        }
+    }
+
+    private async Task Close()
+    {
+        _open = false;
+        await ScrollUnlock();
+    }
+
+    private async Task ScrollUnlock()
+    {
+        await JsRuntime.InvokeVoidAsync("scrollLock.unlock");
+    }
+
+    private async Task ScrollLock()
+    {
+        await JsRuntime.InvokeVoidAsync("scrollLock.lock");
+    }
+
+    public void Dispose()
+    {
+        PopupManager.OnOpen -= HandleOpen;
+        if (_open)
+        {
+            JsRuntime.InvokeVoidAsync("scrollLock.unlock");
+        }
+    }
+
+}

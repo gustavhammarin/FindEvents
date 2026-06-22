@@ -11,34 +11,13 @@ namespace EventScraper.Categorization;
 /// </summary>
 public static class EventCategorizer
 {
-    public const string Default = "Övrigt";
-
-    public static readonly IReadOnlyList<string> Categories =
-    [
-        "Musik & Konsert",
-        "Teater & Show",
-        "Konst & Utställning",
-        "Föreläsning & Utbildning",
-        "Workshop & Kurs",
-        "Sport & Tävling",
-        "Träning & Motion",
-        "Natur & Friluftsliv",
-        "Mat & Dryck",
-        "Marknad & Loppis",
-        "Familj & Barn",
-        "Seniorer & Pensionärer",
-        "Hälsa & Välmående",
-        "Socialt & Träffpunkt",
-        Default
-    ];
-
     /// <summary>Maps a free-text LLM answer onto the fixed list, or null if it doesn't match.</summary>
     public static string? Normalize(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var cleaned = raw.Trim().TrimEnd('.');
 
-        var exact = Categories.FirstOrDefault(c =>
+        var exact = EventCategories.Categories.FirstOrDefault(c =>
             string.Equals(c, cleaned, StringComparison.OrdinalIgnoreCase));
         if (exact is not null) return exact;
 
@@ -46,7 +25,7 @@ public static class EventCategorizer
         var firstWord = cleaned.Split(' ', '&', ',')[0];
         if (firstWord.Length < 3) return null;
 
-        return Categories.FirstOrDefault(c =>
+        return EventCategories.Categories.FirstOrDefault(c =>
             c.StartsWith(firstWord, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -55,7 +34,7 @@ public static class EventCategorizer
     {
         var t = title?.Trim() ?? "";
         var d = description?.Trim() ?? "";
-        if (t.Length + d.Length == 0) return Default;
+        if (t.Length + d.Length == 0) return EventCategories.Default;
 
         var scores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -70,7 +49,7 @@ public static class EventCategorizer
             if (score > 0) scores[category] = score;
         }
 
-        if (scores.Count == 0) return Default;
+        if (scores.Count == 0) return EventCategories.Default;
 
         var maxScore = scores.Values.Max();
         return scores
@@ -104,7 +83,7 @@ public static class EventCategorizer
         ["Marknad & Loppis"] = 3,
         ["Träning & Motion"] = 3,
         ["Socialt & Träffpunkt"] = 2,
-        [Default] = 1
+        [EventCategories.Default] = 1
     };
 
     private static readonly Dictionary<string, List<string>> CategoryKeywords = new(StringComparer.OrdinalIgnoreCase)
@@ -294,7 +273,7 @@ public static class EventCategorizer
             "temafest","temafestkväll","bokcirkel"
         ],
 
-        [Default] =
+        [EventCategories.Default] =
         [
             "jubileum","invigning","invigningsfest","öppningsfest","upptaktsmöte","årsfest",
             "specialevent","temadag","firande","högtid","tradition","ceremoni"

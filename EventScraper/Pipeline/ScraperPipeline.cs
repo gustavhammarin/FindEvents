@@ -57,39 +57,48 @@ public class ScraperPipeline
         CancellationToken ct)
     {
         await semaphore.WaitAsync(ct);
-        // Each source gets its own scope so scoped dependencies (DbContext) aren't shared across threads
         using var scope = _serviceProvider.CreateScope();
         var source = scope.ServiceProvider.GetServices<IEventSource>().ElementAt(sourceIndex);
         try
         {
             _logger.LogInformation("Fetching {Source}", source.Name);
-            var events = await source.FetchAsync(ct);
-            var list = Deduplicate(events);
-
             var repository = scope.ServiceProvider.GetRequiredService<IEventRepository>();
 
-            // Skip existing links before any LLM work — avoids wasting tokens on already-saved events.
-            var allLinks = list.Where(e => !string.IsNullOrEmpty(e.Link)).Select(e => e.Link).ToList();
-            var existingLinks = await repository.GetExistingLinksAsync(allLinks);
-            var newList = list.Where(e => !existingLinks.Contains(e.Link)).ToList();
+            const int BatchSize = 10;
+            var batch = new List<EventInfo>();
+            var seen = new HashSet<(string Title, DateOnly? Date)>();
+            int total = 0, submitted = 0;
 
-            // Structured sources omit category — assign via keyword scoring, LLM fallback for "Övrigt".
-            var llm = scope.ServiceProvider.GetRequiredService<ILlmExtractor>();
-            foreach (var ev in newList.Where(e => string.IsNullOrWhiteSpace(e.Category)))
+            await foreach (var ev in source.FetchAsync(ct))
             {
-                ev.Category = EventCategorizer.Categorize(ev.Title, ev.Description);
-                if (ev.Category == "Övrigt")
+                if (string.IsNullOrEmpty(ev.Link)) continue;
+                total++;
+
+                var key = (ev.Title.Trim().ToLowerInvariant(), ev.StartDate);
+                if (!seen.Add(key)) continue;
+
+                if (string.IsNullOrWhiteSpace(ev.Category))
+                    ev.Category = EventCategorizer.Categorize(ev.Title, ev.Description);
+                ev.Municipality = EventMunicipalities.Normalize(ev.Municipality);
+                if (string.IsNullOrWhiteSpace(ev.Place))
+                    ev.Place = ev.Municipality;
+
+                batch.Add(ev);
+                submitted++;
+
+                if (batch.Count >= BatchSize)
                 {
-                    var llmCategory = await llm.CategorizeAsync(ev.Title, ev.Description, ct);
-                    if (llmCategory != null) ev.Category = llmCategory;
+                    await repository.SaveEventsAsync(batch);
+                    batch.Clear();
                 }
             }
 
-            await repository.SaveEventsAsync(newList);
+            if (batch.Count > 0)
+                await repository.SaveEventsAsync(batch);
 
-            _logger.LogInformation("{Source}: {Total} fetched, {New} new, {Saved} saved",
-                source.Name, list.Count, newList.Count, newList.Count);
-            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = newList.Count, Events = newList };
+            _logger.LogInformation("{Source}: {Total} fetched, {Submitted} submitted to save",
+                source.Name, total, submitted);
+            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = submitted };
         }
         catch (Exception ex)
         {
@@ -101,11 +110,4 @@ public class ScraperPipeline
             semaphore.Release();
         }
     }
-
-    private static List<EventInfo> Deduplicate(IEnumerable<EventInfo> events) =>
-        events
-            .Where(e => !string.IsNullOrEmpty(e.Link))
-            .GroupBy(e => (Title: e.Title.Trim().ToLowerInvariant(), e.StartDate))
-            .Select(g => g.First())
-            .ToList();
 }

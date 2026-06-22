@@ -9,23 +9,39 @@ Swedish event aggregation app for Jönköping County. Scrapes municipal websites
 | API | .NET 10 / ASP.NET Core (minimal APIs) |
 | Database | PostgreSQL 17 + pg_trgm (fuzzy search) |
 | LLM extraction | Mistral API (default) or local oMLX server |
-| Frontend | React 19 + TypeScript + Vite |
-| State | MobX |
-| UI | Tailwind CSS v4 + shadcn/ui |
+| Public frontend | Blazor Server (Interactive SSR) — served by the API |
+| Alt frontend | React 19 + TypeScript + Vite (`client/`) |
+| UI | Tailwind CSS v4 + shadcn/ui (React) / scoped CSS (Blazor) |
 
 ## Project structure
 
 ```
-API/              ASP.NET Core Web API (vertical slice features + modules)
-Application/      Shared core: Result, PagedList, cursor, DTOs
-Domain/           Entity models
-Persistence/      EF Core DbContext + migrations (pg_trgm enabled)
-Infrastructure/   Event repository
-EventScraper/     Scraper library: sources, LLM extraction, categorization
-Tests/            xunit tests
-client/           React frontend
+API/                  ASP.NET Core Web API + Blazor public frontend
+  Components/         Blazor components
+    Layout/           MainLayout (navbar)
+    Pages/Public/     HomePage (/) + EventsPage (/evenemang)
+  Features/           Vertical slice handlers (GetEventsHandler)
+  wwwroot/            Static assets (public.css)
+Application/          Shared core: Result, PagedList, cursor, DTOs
+Domain/               Entity models
+Persistence/          EF Core DbContext + migrations (pg_trgm enabled)
+Infrastructure/       Event repository
+EventScraper/         Scraper library: sources, LLM extraction, categorization
+Tests/                xunit tests
+client/               React frontend (alternative)
 docker-compose.yaml
 ```
+
+## Public frontend
+
+The Blazor frontend is served directly by the API — no separate build step or server needed.
+
+| Route | Description |
+|---|---|
+| `/` | Hero landing page |
+| `/evenemang` | Filterable event grid |
+
+Filters: text search (trigram fuzzy), kategori, kommun, arrangör, startdatum (custom calendar). Load-more cursor pagination, 16 events per page.
 
 ## Scraped sources
 
@@ -50,7 +66,7 @@ docker-compose.yaml
 | [gnosjoandan.com](https://www.gnosjoandan.com) | Gnosjö |
 | [vaggeryd.se](https://www.vaggeryd.se) | Vaggeryd |
 
-Scraping runs every 6 hours in the background. Already-saved links are skipped before any LLM call. Each event gets one of 15 fixed Swedish categories — picked by the LLM during extraction, or by keyword scoring for structured sources, with LLM fallback for "Övrigt".
+Scraping runs every 24 hours in the background. Already-saved links are skipped before any LLM call. Each event gets one of 15 fixed Swedish categories — picked by the LLM during extraction, or by keyword scoring for structured sources, with LLM fallback for "Övrigt".
 
 ---
 
@@ -59,8 +75,8 @@ Scraping runs every 6 hours in the background. Already-saved links are skipped b
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Node.js 20+](https://nodejs.org)
 - [Docker](https://www.docker.com)
+- [Node.js 20+](https://nodejs.org) — only needed for the React client
 
 ### 1. Configure secrets
 
@@ -74,20 +90,18 @@ Fill in `.env` (Postgres credentials) and `appsettings.Development.json` (connec
 ### 2. Start the database
 
 ```bash
-docker compose up -d
+docker compose up postgres -d
 ```
 
-This starts PostgreSQL + pgAdmin. pgAdmin is available at `http://localhost:5050`.
-
-### 3. Run the API
+### 3. Run the API + Blazor frontend
 
 ```bash
 dotnet run --project API
 ```
 
-Starts on `http://localhost:5001`. On first launch it runs EF Core migrations (including pg_trgm) and starts the scraper in the background.
+Starts on `http://localhost:5001`. On first launch it runs EF Core migrations (including pg_trgm) and starts the scraper in the background. The Blazor public frontend is available at the same address.
 
-### 4. Run the frontend
+### 4. (Optional) Run the React frontend
 
 ```bash
 cd client
@@ -95,7 +109,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`.
+Runs on `http://localhost:5173` — calls the same API.
 
 ### Run tests
 

@@ -1,0 +1,12 @@
+@page "/"
+
+<PageTitle>FindEvents – Evenemang i Jönköpings län</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Redirect to events page handled via meta refresh as SSR has no HttpContext redirect
+    }
+}
+
+<meta http-equiv="refresh" content="0;url=/evenemang" />

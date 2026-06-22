@@ -27,7 +27,7 @@ public class HaboSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var events = new List<EventInfo>();
         var seen = new HashSet<string>();
@@ -54,7 +54,8 @@ public class HaboSource : IEventSource
         }
 
         _logger.LogInformation("{Source}: found {Count} events", Name, events.Count);
-        return events;
+        foreach (var ev in events)
+            yield return ev;
     }
 
     private static ListState? ExtractListState(string? html)
