@@ -1,0 +1,113 @@
+.dd-root {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.dd-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0 0.625rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+    white-space: nowrap;
+    height: 2.5rem;
+    transition: color 120ms;
+    font-family: inherit;
+    position: relative;
+    z-index: 200;
+}
+
+.dd-toggle:hover,
+.dd-toggle.dd-active {
+    color: #111827;
+}
+
+.dd-chevron {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+    transition: transform 150ms;
+}
+
+.dd-open .dd-chevron {
+    transform: rotate(180deg);
+}
+
+.dd-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+}
+
+.dd-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    margin-left: calc(-6rem);
+    min-width: 12rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.12), 0 4px 10px -6px rgb(0 0 0 / 0.08);
+    z-index: 200;
+    padding: 0.375rem;
+    animation: dd-in 100ms ease-out;
+}
+
+@keyframes dd-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.dd-divider {
+    height: 1px;
+    background: #f3f4f6;
+    margin: 0.25rem 0;
+}
+
+.dd-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: #374151;
+    border-radius: 0.5rem;
+    text-align: left;
+    transition: background 80ms;
+    font-family: inherit;
+    gap: 0.5rem;
+}
+
+.dd-option:hover {
+    background: #f9fafb;
+    color: #111827;
+}
+
+.dd-option-reset {
+    color: #9ca3af;
+    font-size: 0.75rem;
+}
+
+.dd-option-selected {
+    color: #111827;
+    font-weight: 500;
+}
+
+.dd-option svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+    color: #374151;
+}

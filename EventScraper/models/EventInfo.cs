@@ -17,4 +17,5 @@ public class EventInfo
     public string Source { get; set; } = "";
     public string Municipality { get; set; } = "";
     public string Category { get; set; } = "";
+    public string? Place { get; set; }
 }

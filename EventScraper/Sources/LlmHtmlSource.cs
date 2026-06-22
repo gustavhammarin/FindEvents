@@ -32,7 +32,7 @@ public abstract class LlmHtmlSource : IEventSource
 
     protected abstract Task<IEnumerable<string>> DiscoverUrlsAsync(CancellationToken ct);
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var urls = (await DiscoverUrlsAsync(ct))
             .Select(NormalizeUrl)
@@ -42,18 +42,18 @@ public abstract class LlmHtmlSource : IEventSource
         if (urls.Count == 0)
         {
             _logger.LogWarning("{Source}: no event URLs discovered", Name);
-            return [];
+            yield break;
         }
 
         var existing = await _repository.GetExistingLinksAsync(urls);
         var newUrls = urls.Where(u => !existing.Contains(u)).ToList();
         _logger.LogInformation("{Source}: {Total} URLs, {New} new", Name, urls.Count, newUrls.Count);
 
-        var events = new List<EventInfo>();
         foreach (var url in newUrls)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested) yield break;
 
+            EventInfo? ev = null;
             try
             {
                 var doc = await _loader.LoadHtmlAsync(url);
@@ -62,7 +62,6 @@ public abstract class LlmHtmlSource : IEventSource
                 var text = HtmlTextExtractor.Extract(doc);
                 if (string.IsNullOrWhiteSpace(text)) continue;
 
-                // Skip pages explicitly marked as finished — date would be in the past
                 if (text.Contains("Evenemanget är avslutat", StringComparison.OrdinalIgnoreCase) ||
                     text.Contains("Aktiviteten är avslutad", StringComparison.OrdinalIgnoreCase))
                 {
@@ -70,35 +69,33 @@ public abstract class LlmHtmlSource : IEventSource
                     continue;
                 }
 
-                var ev = await _llm.ExtractAsync(text, url, Municipality, ct);
-                if (ev is null || ev.StartDate is null)
+                var extracted = await _llm.ExtractAsync(text, url, Municipality, ct);
+                if (extracted is null || extracted.StartDate is null)
                 {
                     _logger.LogDebug("{Source}: no event extracted from {Url}", Name, url);
                     continue;
                 }
 
-                // Reject events the LLM assigned a date too far in the past — likely a year-guessing error
-                if (ev.StartDate < DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-14))
+                if (extracted.StartDate < DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-14))
                 {
-                    _logger.LogDebug("{Source}: rejecting stale date {Date} for {Url}", Name, ev.StartDate, url);
+                    _logger.LogDebug("{Source}: rejecting stale date {Date} for {Url}", Name, extracted.StartDate, url);
                     continue;
                 }
 
-                ev.Source = Name;
-                // The LLM only sees stripped text, so the image must come from the markup
-                if (string.IsNullOrEmpty(ev.ImageUrl))
-                    ev.ImageUrl = ExtractImage(doc);
-                ev.ImageUrl = NormalizeUrl(ev.ImageUrl);
-                events.Add(ev);
+                extracted.Source = Name;
+                extracted.Place = Municipality;
+                if (string.IsNullOrEmpty(extracted.ImageUrl))
+                    extracted.ImageUrl = ExtractImage(doc);
+                extracted.ImageUrl = NormalizeUrl(extracted.ImageUrl);
+                ev = extracted;
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                // One bad page (timeout, TLS hiccup) must not throw away the whole source
                 _logger.LogWarning(ex, "{Source}: failed to process {Url}", Name, url);
             }
-        }
 
-        return events;
+            if (ev is not null) yield return ev;
+        }
     }
 
     private static string ExtractImage(HtmlAgilityPack.HtmlDocument doc)

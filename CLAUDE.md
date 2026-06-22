@@ -26,24 +26,18 @@ dotnet test Tests/Tests.csproj
 ```
 
 ### Frontend
-```bash
-cd client
-npm install
-npm run dev      # http://localhost:5173
-npm run build
-npm run lint
-```
+Blazor SSR — served by the API at http://localhost:5001. No separate build step.
+Static assets: `API/wwwroot/` (css + js). Blazor components: `API/Web/`.
 
 ## Architecture
 
 **Clean Architecture**, vertical slice features in API (MediatR removed):
 
 ```
-Domain          → Entity models (Event)
 Persistence     → EF Core DbContext + migrations (AppDbContext)
-Application     → Shared core (Result, PagedList, EventCursor, EventDto, IElasticService)
-Infrastructure  → IEventRepository impl (AppEventRepository)
 API             → Features (vertical slices), modules, middleware, DI wiring, ElasticService
+API/Web/        → Blazor SSR frontend (App.razor, Routes, Pages, Components, scoped CSS)
+API/wwwroot/    → Static assets (css/app.css, js/dropdown.js, js/datepicker.js, js/events.js)
 EventScraper    → Background scraping library (sources + LLM extraction + categorization)
 ```
 

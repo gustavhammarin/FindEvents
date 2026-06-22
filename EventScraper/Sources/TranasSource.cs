@@ -35,7 +35,7 @@ public class TranasSource : IEventSource
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EventInfo>> FetchAsync(CancellationToken ct = default)
+    public async IAsyncEnumerable<EventInfo> FetchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var posts = new List<WpEvent>();
         for (var page = 1; page <= MaxPages; page++)
@@ -43,14 +43,8 @@ public class TranasSource : IEventSource
             ct.ThrowIfCancellationRequested();
 
             string json;
-            try
-            {
-                json = await _loader.GetStringAsync(ApiUrl + page);
-            }
-            catch (HttpRequestException)
-            {
-                break; // WP returns 400 past the last page
-            }
+            try { json = await _loader.GetStringAsync(ApiUrl + page); }
+            catch (HttpRequestException) { break; }
 
             var batch = JsonConvert.DeserializeObject<List<WpEvent>>(json) ?? [];
             if (batch.Count == 0) break;
@@ -63,10 +57,9 @@ public class TranasSource : IEventSource
         var newPosts = posts.Where(p => p.link is not null && !existing.Contains(p.link)).ToList();
         _logger.LogInformation("{Source}: {Total} events, {New} new", Name, posts.Count, newPosts.Count);
 
-        var events = new List<EventInfo>();
         foreach (var post in newPosts)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested) yield break;
 
             var text = $"{post.title?.rendered}\n{StripHtml(post.content?.rendered)}";
             var ev = await _llm.ExtractAsync(text, post.link!, "Tranås", ct);
@@ -81,10 +74,9 @@ public class TranasSource : IEventSource
             ev.Source = Name;
             if (string.IsNullOrEmpty(ev.ImageUrl))
                 ev.ImageUrl = FirstImage(post.content?.rendered);
-            events.Add(ev);
-        }
 
-        return events;
+            yield return ev;
+        }
     }
 
     private static string StripHtml(string? html)

@@ -19,7 +19,7 @@ public class MistralExtractor : ILlmExtractor
     private const int MaxTextLength = 6000;
 
     private static readonly string CategoryList =
-        string.Join(" | ", EventCategorizer.Categories);
+        string.Join(" | ", EventCategories.Categories);
 
     public MistralExtractor(HttpClient http, IOptions<MistralSettings> settings, ILogger<MistralExtractor> logger)
     {
@@ -37,11 +37,11 @@ public class MistralExtractor : ILlmExtractor
         var truncated = text.Length > MaxTextLength ? text[..MaxTextLength] : text;
 
         var year = DateTime.UtcNow.Year;
-        var prompt = $$"""
-            Extrahera evenemangsinformation från texten nedan.
+
+        var systemPrompt = $$"""
+            Extrahera evenemangsinformation från svenska evenemangssidor.
             Returnera ENBART ett JSON-objekt, inga förklaringar.
             Om ett fält saknas, sätt det till null.
-            Dagens år är {{year}}. Om ett datum saknar år, använd {{year}} (eller {{year + 1}} om datumet redan passerat).
 
             JSON-schema:
             {
@@ -50,14 +50,21 @@ public class MistralExtractor : ILlmExtractor
               "endDate": "YYYY-MM-DD eller null",
               "startTime": "HH:mm eller null",
               "endTime": "HH:mm eller null",
-              "location": "plats eller null",
+              "location": "platsnamn/adress eller null",
+              "place": "stad/ort där evenemanget hålls (t.ex. Huskvarna, Värnamo), 'Distans' om det är online, eller null. OBS: I adresser med formatet 'POSTNUMMER STAD, LÄN/REGION' (t.ex. '654 65 Eksjö, Jönköping' eller '331 30 Värnamo, Jönköpings län') är STAD platsen (Eksjö, Värnamo) – inte länet eller regionen som står efter kommat.",
+              "municipality": "kommunen i Jönköpings län (t.ex. Jönköping, Habo, Värnamo) eller null",
               "description": "max 400 tecken eller null",
               "imageUrl": "bild-URL om den finns, annars null",
               "category": "exakt en av: {{CategoryList}}"
             }
+            """;
+
+        var userPrompt = $"""
+            Dagens år är {year}. Om ett datum saknar år, använd {year} (eller {year + 1} om datumet redan passerat).
+            Evenemanget är troligen i eller nära kommunen "{municipality}".
 
             Text:
-            {{truncated}}
+            {truncated}
             """;
 
         var request = new
@@ -66,7 +73,8 @@ public class MistralExtractor : ILlmExtractor
             response_format = new { type = "json_object" },
             messages = new[]
             {
-                new { role = "user", content = prompt }
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userPrompt }
             },
             temperature = 0.1
         };
@@ -106,11 +114,12 @@ public class MistralExtractor : ILlmExtractor
                 StartTime = ParseTime(extracted.StartTime),
                 EndTime = ParseTime(extracted.EndTime),
                 Location = extracted.Location ?? "",
+                Place = string.IsNullOrWhiteSpace(extracted.Place) ? null : extracted.Place.Trim(),
+                Municipality = EventMunicipalities.Normalize(extracted.Municipality, municipality),
                 Description = extracted.Description,
                 ImageUrl = extracted.ImageUrl ?? "",
                 Link = sourceUrl,
                 Source = new Uri(sourceUrl).Host,
-                Municipality = municipality,
                 Category = EventCategorizer.Normalize(extracted.Category)
                     ?? EventCategorizer.Categorize(extracted.Title, extracted.Description)
             };
@@ -191,6 +200,8 @@ public class MistralExtractor : ILlmExtractor
         public string? StartTime { get; set; }
         public string? EndTime { get; set; }
         public string? Location { get; set; }
+        public string? Place { get; set; }
+        public string? Municipality { get; set; }
         public string? Description { get; set; }
         public string? ImageUrl { get; set; }
         public string? Category { get; set; }
