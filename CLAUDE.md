@@ -26,19 +26,23 @@ dotnet test Tests/Tests.csproj
 ```
 
 ### Frontend
-Blazor SSR — served by the API at http://localhost:5001. No separate build step.
-Static assets: `API/wwwroot/` (css + js). Blazor components: `API/Web/`.
+HTMX + Razor Pages — served by the App at http://localhost:5001. No separate build step.
+Static assets: `App/wwwroot/` (css/app.css, js/htmx-filters.js). Razor Pages: `App/Web/Pages/`.
 
 ## Architecture
 
 **Clean Architecture**, vertical slice features in API (MediatR removed):
 
 ```
-Persistence     → EF Core DbContext + migrations (AppDbContext)
-API             → Features (vertical slices), modules, middleware, DI wiring, ElasticService
-API/Web/        → Blazor SSR frontend (App.razor, Routes, Pages, Components, scoped CSS)
-API/wwwroot/    → Static assets (css/app.css, js/dropdown.js, js/datepicker.js, js/events.js)
-EventScraper    → Background scraping library (sources + LLM extraction + categorization)
+App/Persistence/         → EF Core DbContext + migrations (AppDbContext)
+App/                     → EventService, scraper pipeline, DI wiring
+App/Web/Pages/           → Razor Pages frontend (HTMX; pages root = /Web/Pages)
+  Shared/_Layout.cshtml  → HTML shell (includes HTMX CDN + htmx-filters.js)
+  Evenemang/Index.cshtml → /evenemang full page + handler=Cards partial
+  Evenemang/Detail.cshtml→ /evenemang/{id} detail page
+  Evenemang/_EventCards.cshtml → partial view for event grid (returned by HTMX)
+App/wwwroot/             → Static assets (css/app.css, js/htmx-filters.js)
+App/Scraper/             → Background scraping library (sources + LLM extraction + categorization)
 ```
 
 ### Request flow
@@ -73,10 +77,12 @@ Two kinds of sources in `EventScraper/Sources/`:
 ### Adding a scraper source
 LLM site: subclass `LlmHtmlSource` (implement `Name`, `Municipality`, `BaseUrl`, `DiscoverUrlsAsync`). Structured site: implement `IEventSource` directly. Done — auto-discovered at startup.
 
-### Frontend
-React 19 + TypeScript + Vite. State: MobX (`mobx-react-lite`). Data fetching: TanStack Query with infinite scroll (`useInView` sentinel). UI: Tailwind CSS v4 + shadcn/ui (Radix primitives) + MUI components. Routing: React Router v7.
+### Frontend (HTMX + Razor Pages)
+Filter bar: `<form id="filters">` with `hx-get="/evenemang?handler=Cards"` triggers on `change` / `keyup delay:350ms`. Response replaces `#events-container` with `_EventCards.cshtml` partial (includes OOB swap for `#event-count`).
 
-Infinite scroll pattern: last `EventCard` gets an intersection observer ref → triggers `fetchNextPage()` → appends next cursor page to `eventsGroup.pages`.
+Load more: button inside `_EventCards.cshtml` uses `hx-include="#filters"` + `hx-vals={"ta": N+32}` — server returns all N+32 events, full replace of `#events-container`.
+
+Custom dropdowns/datepicker: vanilla JS in `htmx-filters.js` — manages hidden `<input>` elements inside the form and dispatches `change` events to trigger HTMX. URL sync runs on `htmx:afterSettle` via `history.replaceState`.
 
 ## Configuration
 

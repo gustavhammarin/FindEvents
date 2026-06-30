@@ -1,0 +1,183 @@
+@page "/evenemang/{id}"
+@model App.Web.Pages.Evenemang.DetailModel
+@{
+    var svSE = new CultureInfo("sv-SE");
+    if (Model.Event is null)
+    {
+        ViewData["Title"] = "Evenemang hittades inte | FindEvents";
+    }
+    else
+    {
+        ViewData["Title"] = $"{Model.Event.Title} | FindEvents";
+    }
+}
+@section Head {
+    <title>@ViewData["Title"]</title>
+    @if (Model.Event is not null)
+    {
+        <link rel="canonical" href="@Model.CanonicalUrl" />
+        <meta name="description" content="@Model.Description" />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="@Model.CanonicalUrl" />
+        <meta property="og:title" content="@ViewData["Title"]" />
+        <meta property="og:description" content="@Model.Description" />
+        @if (Model.HasImage)
+        {
+            <meta property="og:image" content="@Model.Event.ImageUrl" />
+            <meta name="twitter:image" content="@Model.Event.ImageUrl" />
+        }
+        <meta name="twitter:title" content="@ViewData["Title"]" />
+        <meta name="twitter:description" content="@Model.Description" />
+        <script type="application/ld+json">@Html.Raw(Model.JsonLd)</script>
+    }
+}
+
+@if (Model.Event is null)
+{
+    <div class="detail-wrapper">
+        <a href="/evenemang" class="detail-back" onclick="if(document.referrer.includes('/evenemang')){history.back();return false;}">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            Alla evenemang
+        </a>
+        <p class="detail-not-found">Evenemanget hittades inte.</p>
+    </div>
+}
+else
+{
+    <div class="detail-wrapper">
+        <a href="/evenemang" class="detail-back" onclick="if(document.referrer.includes('/evenemang')){history.back();return false;}">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            Alla evenemang
+        </a>
+
+        <article class="detail-article">
+            <div class="detail-image-wrap">
+                @if (Model.HasImage)
+                {
+                    <img src="@Model.Event.ImageUrl" alt="@Model.Event.Title" class="detail-image" />
+                }
+                else
+                {
+                    <div class="detail-image-placeholder">
+                        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <path d="M16 2v4M8 2v4M3 10h18"/>
+                        </svg>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Event.Category))
+                {
+                    <span class="detail-category">@Model.Event.Category</span>
+                }
+            </div>
+
+            <div class="detail-body">
+                <h1 class="detail-title">@Model.Event.Title</h1>
+
+                <div class="detail-meta">
+                    @if (Model.DateLabel is not null)
+                    {
+                        <div class="detail-meta-item">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <path d="M16 2v4M8 2v4M3 10h18"/>
+                            </svg>
+                            <span class="detail-date-text">@Model.DateLabel</span>
+                        </div>
+                    }
+                    @if (Model.TimeLabel is not null)
+                    {
+                        <div class="detail-meta-item">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+                            </svg>
+                            <span>@Model.TimeLabel</span>
+                        </div>
+                    }
+                    @if (Model.LocationText is not null)
+                    {
+                        <div class="detail-meta-item">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/>
+                                <circle cx="12" cy="10" r="2"/>
+                            </svg>
+                            <span>@Model.LocationText</span>
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Event.Description))
+                {
+                    <hr class="detail-divider" />
+                    <p class="detail-description">@Model.Event.Description</p>
+                }
+
+                <a href="@Model.ExternalLink" target="_blank" rel="noopener noreferrer" class="detail-cta">
+                    Gå till evenemang
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <path d="M15 3h6v6"/><path d="M10 14L21 3"/>
+                    </svg>
+                </a>
+            </div>
+        </article>
+
+        @if (Model.Similar.Count > 0)
+        {
+            <section class="similar-section">
+                <h2 class="similar-heading">Liknande evenemang</h2>
+                <div class="similar-grid">
+                    @foreach (var e in Model.Similar)
+                    {
+                        var hasImg = !string.IsNullOrEmpty(e.ImageUrl)
+                            && !e.ImageUrl.Contains("placeholder")
+                            && e.ImageUrl.StartsWith("http");
+                        var date = e.StartDate.HasValue
+                            ? e.StartDate.Value.ToDateTime(TimeOnly.MinValue).ToString("d MMM", svSE)
+                            : null;
+                        var loc = e.Location ?? e.Municipality;
+                        <a href="/evenemang/@e.Id" class="similar-card">
+                            <div class="similar-card-image">
+                                @if (hasImg)
+                                {
+                                    <img src="@e.ImageUrl" alt="@e.Title" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <div class="similar-card-placeholder">
+                                        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                            <path d="M16 2v4M8 2v4M3 10h18"/>
+                                        </svg>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(e.Category))
+                                {
+                                    <span class="similar-card-category">@e.Category</span>
+                                }
+                            </div>
+                            <div class="similar-card-body">
+                                <p class="similar-card-title">@e.Title</p>
+                                <div class="similar-card-meta">
+                                    @if (date is not null)
+                                    {
+                                        <span>@date</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(loc))
+                                    {
+                                        <span class="similar-card-loc">@loc</span>
+                                    }
+                                </div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}

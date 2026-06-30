@@ -1,0 +1,121 @@
+@page "/evenemang"
+@model App.Web.Pages.Evenemang.IndexModel
+@{
+    ViewData["Title"] = "Evenemang i Jönköpings län | FindEvents";
+    var hasActiveFilters = !string.IsNullOrEmpty(Model.Q)
+        || Model.SelectedCategories.Any()
+        || Model.SelectedPlaces.Any()
+        || !string.IsNullOrEmpty(Model.Datum);
+    var canonical = $"{Request.Scheme}://{Request.Host}/evenemang";
+}
+@section Head {
+    <title>@ViewData["Title"]</title>
+    <link rel="canonical" href="@canonical" />
+    <meta name="description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    <meta name="robots" content="@(hasActiveFilters ? "noindex, follow" : "index, follow")" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="@canonical" />
+    <meta property="og:title" content="@ViewData["Title"]" />
+    <meta property="og:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    <meta name="twitter:title" content="@ViewData["Title"]" />
+    <meta name="twitter:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+}
+
+<div class="sticky-filters">
+    <div class="site-container">
+        <form id="filters"
+              hx-get="/evenemang?handler=Cards"
+              hx-target="#events-container"
+              hx-swap="innerHTML"
+              hx-trigger="change, keyup changed delay:350ms from:[name=q]">
+            <div class="filter-bar">
+                <div class="fb-search">
+                    <svg class="fb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" name="q" value="@Model.Q"
+                           class="fb-search-input"
+                           placeholder="Sök evenemang..."
+                           autocomplete="off" spellcheck="false" />
+                </div>
+
+                <div class="fb-sep"></div>
+
+                <div class="dd-root" id="dd-plats"
+                     data-dd-name="plats"
+                     data-dd-placeholder="Plats"
+                     data-dd-options="@System.Text.Json.JsonSerializer.Serialize(Model.AllPlaces)"
+                     data-dd-selected="@System.Text.Json.JsonSerializer.Serialize(Model.SelectedPlaces)">
+                    <button type="button" class="dd-toggle @(Model.SelectedPlaces.Any() ? "dd-active" : "")">
+                        <span>@(!Model.SelectedPlaces.Any() ? "Plats" : $"Plats ({Model.SelectedPlaces.Count})")</span>
+                        <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                    </button>
+                    @foreach (var p in Model.SelectedPlaces)
+                    {
+                        <input type="hidden" name="plats" value="@p" />
+                    }
+                </div>
+
+                <div class="fb-sep"></div>
+
+                <div class="dd-root" id="dd-cat"
+                     data-dd-name="cat"
+                     data-dd-placeholder="Kategori"
+                     data-dd-options="@System.Text.Json.JsonSerializer.Serialize(Model.AllCategories)"
+                     data-dd-selected="@System.Text.Json.JsonSerializer.Serialize(Model.SelectedCategories)">
+                    <button type="button" class="dd-toggle @(Model.SelectedCategories.Any() ? "dd-active" : "")">
+                        <span>@(!Model.SelectedCategories.Any() ? "Kategori" : $"Kategori ({Model.SelectedCategories.Count})")</span>
+                        <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                    </button>
+                    @foreach (var c in Model.SelectedCategories)
+                    {
+                        <input type="hidden" name="cat" value="@c" />
+                    }
+                </div>
+
+                <div class="fb-sep"></div>
+
+                <div class="dp-root" id="dp-datum"
+                     data-dp-name="datum"
+                     data-dp-value="@Model.Datum">
+                    <button type="button" class="dp-toggle @(!string.IsNullOrEmpty(Model.Datum) ? "dp-active" : "")">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <path d="M16 2v4M8 2v4M3 10h18"/>
+                        </svg>
+                        <span>@(string.IsNullOrEmpty(Model.Datum) ? "Datum" : DateOnly.TryParse(Model.Datum, out var dp) ? dp.ToString("d MMM yyyy", new System.Globalization.CultureInfo("sv-SE")) : "Datum")</span>
+                        @if (!string.IsNullOrEmpty(Model.Datum))
+                        {
+                            <span class="dp-clear" id="dp-clear" aria-label="Rensa datum">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                    <path d="M18 6 6 18M6 6l12 12"/>
+                                </svg>
+                            </span>
+                        }
+                    </button>
+                    @if (!string.IsNullOrEmpty(Model.Datum))
+                    {
+                        <input type="hidden" name="datum" value="@Model.Datum" />
+                    }
+                </div>
+
+                <button type="button" class="fb-clear @(hasActiveFilters ? "" : "hidden")" id="filter-clear" aria-label="Rensa alla filter">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </form>
+        <p id="event-count" class="fb-count">@Model.Events.Count evenemang</p>
+    </div>
+</div>
+
+<div class="site-container events-wrapper">
+    <div id="events-container">
+        @await Html.PartialAsync("_EventCards", new EventCardsViewModel(Model.Events, Model.NextCursor, Model.Take))
+    </div>
+</div>

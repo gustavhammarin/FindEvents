@@ -6,7 +6,6 @@ using App.Persistence;
 using App.Repositories;
 using App.Scraper;
 using App.Services;
-using App.Web;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,15 +32,12 @@ builder.Services.AddSingleton<CategoryClassifierService>();
 builder.Services.AddSingleton<EventEmbeddingService>();
 
 builder.Services.AddScoped<EventService>();
-builder.Services.AddScoped<PopupManager>();
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+builder.Services.AddRazorPages(options => options.RootDirectory = "/Web/Pages");
 
 var app = builder.Build();
 
 app.UseStaticFiles();
-app.UseAntiforgery();
 
 app.MapGet("/", () => Results.Redirect("/evenemang", permanent: true));
 
@@ -95,8 +91,7 @@ app.MapGet("/sitemap.xml", async (AppDbContext db, HttpContext ctx) =>
     await ctx.Response.WriteAsync(sb.ToString());
 });
 
-app.MapRazorComponents<Shell>()
-    .AddInteractiveServerRenderMode();
+app.MapRazorPages();
 
 using var scope = app.Services.CreateScope();
 try
