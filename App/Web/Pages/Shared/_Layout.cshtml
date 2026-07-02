@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@@findevents" />
     <link rel="icon" href="/favicon.ico" />
-    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="stylesheet" href="/css/app.css" asp-append-version="true" />
     @RenderSection("Head", required: false)
 </head>
 <body>
@@ -22,7 +22,7 @@
     <main>
         @RenderBody()
     </main>
-    <script src="/js/htmx.min.js"></script>
-    <script src="/js/htmx-filters.js"></script>
+    <script src="/js/htmx.min.js" asp-append-version="true"></script>
+    <script src="/js/htmx-filters.js" asp-append-version="true"></script>
 </body>
 </html>

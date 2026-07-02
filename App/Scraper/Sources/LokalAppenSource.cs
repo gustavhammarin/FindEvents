@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using App.Scraper.Interfaces;
 using App.Scraper.Models;
-using Microsoft.Extensions.Logging;
 
 namespace App.Scraper.Sources;
 
@@ -112,13 +111,4 @@ public class NassjoSource(IHttpLoader loader, ILogger<NassjoSource> logger)
     protected override int AppId => 3;
     protected override string MunicipalityName => "Nässjö";
     protected override string AppHost => "nassjo.appen.se";
-}
-
-public class EksjoSource(IHttpLoader loader, ILogger<EksjoSource> logger)
-    : LokalAppenSource(loader, logger)
-{
-    public override string Name => "eksjo.appen.se";
-    protected override int AppId => 5;
-    protected override string MunicipalityName => "Eksjö";
-    protected override string AppHost => "eksjo.appen.se";
 }

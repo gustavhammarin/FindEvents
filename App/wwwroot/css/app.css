@@ -493,29 +493,16 @@ html.scroll-locked {
         position: sticky;
         top: 0;
         background: var(--surface);
-        padding: 1rem 0.25rem 0.75rem;
+        padding: 0.75rem 0.25rem;
         margin-bottom: 0.25rem;
         border-bottom: 1px solid var(--surface-warm);
         z-index: 1;
-    }
-
-    .dd-sheet-head::before {
-        content: "";
-        position: absolute;
-        top: 0.4375rem;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 2.25rem;
-        height: 0.25rem;
-        border-radius: 9999px;
-        background: var(--border-strong);
     }
 
     .dd-sheet-title {
         font-size: 1rem;
         font-weight: 600;
         color: var(--text-strong);
-        padding-top: 0.375rem;
     }
 
     .dd-sheet-done {
@@ -818,7 +805,7 @@ html.scroll-locked {
     text-decoration: none;
     color: inherit;
     height: 100%;
-    transition: border-color 200ms, box-shadow 200ms, transform 200ms;
+    transition: border-color 300ms ease, box-shadow 300ms ease, transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (hover: hover) {
@@ -829,7 +816,7 @@ html.scroll-locked {
     }
 
     .event-card:hover .event-card-image img {
-        transform: scale(1.04);
+        transform: scale(1.03);
     }
 }
 
@@ -850,7 +837,7 @@ html.scroll-locked {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 300ms;
+    transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .event-card-placeholder {
@@ -1159,18 +1146,18 @@ html.scroll-locked {
     overflow: hidden;
     text-decoration: none;
     color: inherit;
-    transition: border-color 200ms, box-shadow 200ms, transform 200ms;
+    transition: border-color 300ms ease, box-shadow 300ms ease, transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (hover: hover) {
     .similar-card:hover {
         border-color: var(--border-strong);
         box-shadow: var(--shadow-card-hover);
-        transform: translateY(-2px);
+        transform: translateY(-3px);
     }
 
     .similar-card:hover .similar-card-image img {
-        transform: scale(1.04);
+        transform: scale(1.03);
     }
 }
 
@@ -1191,7 +1178,7 @@ html.scroll-locked {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 300ms;
+    transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .similar-card-placeholder {

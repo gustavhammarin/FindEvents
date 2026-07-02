@@ -124,6 +124,7 @@
 
         function openDropdown() {
             closeAllDropdowns();
+            closeAllDatePickers();
             root.classList.add('dd-open');
             document.documentElement.classList.add('scroll-locked');
 
@@ -164,6 +165,12 @@
     function closeAllDropdowns() {
         document.querySelectorAll('.dd-root.dd-open').forEach(function (r) {
             if (r._closeDropdown) r._closeDropdown();
+        });
+    }
+
+    function closeAllDatePickers() {
+        document.querySelectorAll('.dp-root.dp-open').forEach(function (r) {
+            if (r._closeDatePicker) r._closeDatePicker();
         });
     }
 
@@ -498,9 +505,7 @@
         // Close popups on outside click
         document.addEventListener('click', function () {
             closeAllDropdowns();
-            document.querySelectorAll('.dp-root.dp-open').forEach(function (r) {
-                if (r._closeDatePicker) r._closeDatePicker();
-            });
+            closeAllDatePickers();
         });
     }
 
