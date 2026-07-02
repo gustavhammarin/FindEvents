@@ -1,0 +1,148 @@
+@page "/admin"
+@model App.Web.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Admin | FindEvents";
+    var sweTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
+    string Local(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(utc, sweTz).ToString("yyyy-MM-dd HH:mm");
+}
+@section Head {
+    <meta name="robots" content="noindex, nofollow" />
+    <style>
+        .admin-wrap { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .admin-wrap h1 { margin-bottom: 1.5rem; }
+        .admin-wrap h2 { margin: 2rem 0 .75rem; font-size: 1.1rem; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+        .stat-card { background: #f3f4f6; border-radius: .5rem; padding: 1rem; }
+        .stat-card .num { font-size: 1.6rem; font-weight: 700; display: block; }
+        .stat-card .lbl { color: #6b7280; font-size: .85rem; }
+        .admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+        .admin-table th, .admin-table td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #e5e7eb; }
+        .admin-table th { color: #6b7280; font-weight: 600; }
+        .run-ok { color: #059669; font-weight: 600; }
+        .run-warn { color: #d97706; font-weight: 600; }
+        .run-fail { color: #dc2626; font-weight: 600; }
+        details.run-sources summary { cursor: pointer; color: #2563eb; }
+        details.run-sources { margin: .25rem 0; }
+        .src-error { color: #dc2626; font-size: .8rem; }
+        .muted { color: #6b7280; }
+    </style>
+}
+
+<div class="admin-wrap">
+    <h1>Admin</h1>
+
+    <div class="stat-grid">
+        <div class="stat-card"><span class="num">@Model.TotalEvents</span><span class="lbl">Evenemang totalt</span></div>
+        <div class="stat-card"><span class="num">@Model.UpcomingEvents</span><span class="lbl">Kommande</span></div>
+        <div class="stat-card"><span class="num">@Model.UnembeddedEvents</span><span class="lbl">Saknar embedding</span></div>
+        <div class="stat-card"><span class="num">@Model.EventsBySource.Count</span><span class="lbl">Aktiva källor</span></div>
+    </div>
+
+    <h2>Körningar (senaste 20)</h2>
+    @if (!Model.Runs.Any())
+    {
+        <p class="muted">Inga körningar registrerade ännu.</p>
+    }
+    else
+    {
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>Startad</th>
+                <th>Typ</th>
+                <th>Status</th>
+                <th>Källor</th>
+                <th>Hämtade</th>
+                <th>Nya</th>
+                <th>Raderade</th>
+                <th>Embeddade</th>
+                <th>Omklassade</th>
+                <th>Tid</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var run in Model.Runs)
+            {
+                var failedSources = run.Sources.Count(s => !s.Success);
+                var statusClass = run.Error != null ? "run-fail"
+                    : !run.FinishedAtUtc.HasValue ? "muted"
+                    : failedSources > 0 || run.EmbeddingFailures > 0 ? "run-warn"
+                    : "run-ok";
+                var statusText = run.Error != null ? "Fel"
+                    : !run.FinishedAtUtc.HasValue ? "Pågår"
+                    : failedSources > 0 ? $"{failedSources} källor misslyckades"
+                    : run.EmbeddingFailures > 0 ? $"{run.EmbeddingFailures} embeddingfel"
+                    : "OK";
+                var duration = run.FinishedAtUtc.HasValue
+                    ? (run.FinishedAtUtc.Value - run.StartedAtUtc).TotalMinutes is var m && m >= 1
+                        ? $"{m:F0} min"
+                        : $"{(run.FinishedAtUtc.Value - run.StartedAtUtc).TotalSeconds:F0} s"
+                    : "–";
+                <tr>
+                    <td>@Local(run.StartedAtUtc)</td>
+                    <td>@(run.Trigger == "startup" ? "Uppstart" : "Schemalagd")</td>
+                    <td class="@statusClass">@statusText</td>
+                    <td>@(run.TotalSources > 0 ? $"{run.SuccessfulSources}/{run.TotalSources}" : "–")</td>
+                    <td>@run.EventsFetched</td>
+                    <td>@run.EventsSaved</td>
+                    <td>@run.EventsDeleted</td>
+                    <td>@run.EventsEmbedded</td>
+                    <td>@run.EventsReclassified</td>
+                    <td>@duration</td>
+                </tr>
+                @if (run.Error != null || run.Sources.Any())
+                {
+                    <tr>
+                        <td colspan="10">
+                            @if (run.Error != null)
+                            {
+                                <span class="src-error">@run.Error</span>
+                            }
+                            @if (run.Sources.Any())
+                            {
+                                <details class="run-sources">
+                                    <summary>Per källa</summary>
+                                    <table class="admin-table">
+                                        <thead>
+                                        <tr><th>Källa</th><th>Status</th><th>Hämtade</th><th>Nya</th><th>Tid</th></tr>
+                                        </thead>
+                                        <tbody>
+                                        @foreach (var src in run.Sources.OrderByDescending(s => s.EventsSaved))
+                                        {
+                                            <tr>
+                                                <td>@src.SourceName</td>
+                                                <td class="@(src.Success ? "run-ok" : "run-fail")">
+                                                    @(src.Success ? "OK" : "Fel")
+                                                    @if (src.Error != null)
+                                                    {
+                                                        <div class="src-error">@src.Error</div>
+                                                    }
+                                                </td>
+                                                <td>@src.EventsFetched</td>
+                                                <td>@src.EventsSaved</td>
+                                                <td>@src.DurationSeconds.ToString("F0") s</td>
+                                            </tr>
+                                        }
+                                        </tbody>
+                                    </table>
+                                </details>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    }
+
+    <h2>Evenemang per källa</h2>
+    <table class="admin-table">
+        <thead><tr><th>Källa</th><th>Antal</th></tr></thead>
+        <tbody>
+        @foreach (var s in Model.EventsBySource)
+        {
+            <tr><td>@s.Source</td><td>@s.Count</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

@@ -6,9 +6,26 @@ using App.Persistence;
 using App.Repositories;
 using App.Scraper;
 using App.Services;
+using App.Web;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
+// Single .env file (repo root) holds all local config — loaded into env vars
+// before the config system reads them. No-op when the file doesn't exist.
+DotNetEnv.Env.TraversePath().Load();
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Behind Caddy/nginx: trust X-Forwarded-Proto/Host so canonical URLs and
+// sitemap get https + the real domain.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
@@ -37,15 +54,20 @@ builder.Services.AddRazorPages(options => options.RootDirectory = "/Web/Pages");
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseStaticFiles();
+app.UseAdminBasicAuth(app.Configuration["Admin:Password"]);
 
 app.MapGet("/", () => Results.Redirect("/evenemang", permanent: true));
+
+app.MapGet("/healthz", async (AppDbContext db) =>
+    await db.Database.CanConnectAsync() ? Results.Text("ok") : Results.StatusCode(503));
 
 app.MapGet("/robots.txt", (HttpContext ctx) =>
 {
     var host = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
     return Results.Text(
-        $"User-agent: *\nAllow: /\nDisallow: /evenemang?\n\nSitemap: {host}/sitemap.xml\n",
+        $"User-agent: *\nAllow: /\nDisallow: /evenemang?\nDisallow: /admin\n\nSitemap: {host}/sitemap.xml\n",
         "text/plain");
 });
 
@@ -59,11 +81,12 @@ app.MapGet("/sitemap.xml", async (AppDbContext db, HttpContext ctx) =>
         .Select(e => new { e.Id, e.StartDate })
         .ToListAsync();
 
+    // Write to StringBuilder (UTF-16 internally) but serve as UTF-8 — omit the
+    // XML declaration so the document doesn't lie about its encoding.
     var sb = new StringBuilder();
-    var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = false, Async = true };
+    var settings = new XmlWriterSettings { OmitXmlDeclaration = true, Indent = false, Async = true };
     await using var writer = XmlWriter.Create(sb, settings);
 
-    await writer.WriteStartDocumentAsync();
     writer.WriteStartElement("urlset", "http://www.sitemaps.org/schemas/sitemap/0.9");
 
     // Events list page

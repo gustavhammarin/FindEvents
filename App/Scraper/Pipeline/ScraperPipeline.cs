@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using App.Repositories;
 using App.Scraper.Categorization;
 using App.Scraper.Interfaces;
@@ -28,24 +29,34 @@ public class ScraperPipeline
 
         var semaphore = new SemaphoreSlim(maxConcurrency);
         var tasks = Enumerable.Range(0, sourceCount).Select(i => RunSourceAsync(i, semaphore, ct));
-        var results = await Task.WhenAll(tasks);
+        var results = (await Task.WhenAll(tasks)).ToList();
 
-        var totalEvents = results.Sum(r => r.EventCount);
-        _logger.LogInformation("Pipeline done: {Events} events from {Sources}/{Total} sources",
-            totalEvents, results.Count(r => r.Success), sourceCount);
+        var totalSaved = results.Sum(r => r.EventsSaved);
+        _logger.LogInformation("Pipeline done: {Saved} new events from {Sources}/{Total} sources",
+            totalSaved, results.Count(r => r.Success), sourceCount);
 
-        using var cleanupScope = _serviceProvider.CreateScope();
-        var repo = cleanupScope.ServiceProvider.GetRequiredService<IEventRepository>();
-        var cutoff = DateOnly.FromDateTime(DateTime.UtcNow);
-        var deleted = await repo.DeleteOldEventsAsync(cutoff);
-        if (deleted > 0)
-            _logger.LogInformation("Pipeline cleanup: deleted {Count} past events (StartDate < {Cutoff})", deleted, cutoff);
+        var deleted = 0;
+        try
+        {
+            using var cleanupScope = _serviceProvider.CreateScope();
+            var repo = cleanupScope.ServiceProvider.GetRequiredService<IEventRepository>();
+            var cutoff = DateOnly.FromDateTime(DateTime.UtcNow);
+            deleted = await repo.DeleteOldEventsAsync(cutoff);
+            if (deleted > 0)
+                _logger.LogInformation("Pipeline cleanup: deleted {Count} past events (StartDate < {Cutoff})", deleted, cutoff);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Pipeline cleanup failed");
+        }
 
         return new PipelineResult
         {
             TotalScrapers = sourceCount,
             SuccessfulScrapers = results.Count(r => r.Success),
-            TotalEvents = totalEvents,
+            TotalEventsFetched = results.Sum(r => r.EventsFetched),
+            TotalEventsSaved = totalSaved,
+            EventsDeleted = deleted,
             ScraperResults = results
         };
     }
@@ -55,6 +66,7 @@ public class ScraperPipeline
         await semaphore.WaitAsync(ct);
         using var scope = _serviceProvider.CreateScope();
         var source = scope.ServiceProvider.GetServices<IEventSource>().ElementAt(sourceIndex);
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Fetching {Source}", source.Name);
@@ -63,7 +75,7 @@ public class ScraperPipeline
             const int BatchSize = 10;
             var batch = new List<EventInfo>();
             var seen = new HashSet<(string Title, DateOnly? Date)>();
-            int total = 0, submitted = 0;
+            int total = 0, saved = 0;
 
             await foreach (var ev in source.FetchAsync(ct))
             {
@@ -80,26 +92,40 @@ public class ScraperPipeline
                     ev.Place = ev.Municipality;
 
                 batch.Add(ev);
-                submitted++;
 
                 if (batch.Count >= BatchSize)
                 {
-                    await repository.SaveEventsAsync(batch, ct);
+                    saved += await repository.SaveEventsAsync(batch, ct);
                     batch.Clear();
                 }
             }
 
             if (batch.Count > 0)
-                await repository.SaveEventsAsync(batch, ct);
+                saved += await repository.SaveEventsAsync(batch, ct);
 
-            _logger.LogInformation("{Source}: {Total} fetched, {Submitted} submitted to save",
-                source.Name, total, submitted);
-            return new ScraperResult { ScraperName = source.Name, Success = true, EventCount = submitted };
+            stopwatch.Stop();
+            _logger.LogInformation("{Source}: {Total} fetched, {Saved} new saved in {Seconds:F0}s",
+                source.Name, total, saved, stopwatch.Elapsed.TotalSeconds);
+            return new ScraperResult
+            {
+                ScraperName = source.Name,
+                Success = true,
+                EventsFetched = total,
+                EventsSaved = saved,
+                DurationSeconds = stopwatch.Elapsed.TotalSeconds
+            };
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             _logger.LogError(ex, "Error in source {Source}", source.Name);
-            return new ScraperResult { ScraperName = source.Name, Success = false, ErrorMessage = ex.Message };
+            return new ScraperResult
+            {
+                ScraperName = source.Name,
+                Success = false,
+                DurationSeconds = stopwatch.Elapsed.TotalSeconds,
+                ErrorMessage = ex.Message
+            };
         }
         finally
         {

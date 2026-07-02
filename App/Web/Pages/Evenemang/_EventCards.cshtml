@@ -4,9 +4,14 @@
     var svSE = new CultureInfo("sv-SE");
 }
 
-<p id="event-count" class="fb-count" hx-swap-oob="true">@Model.Events.Count evenemang</p>
+@* OOB count only makes sense for HTMX partial responses — on full SSR render
+   the count already exists in the sticky filter bar and would duplicate. *@
+@if (Context.Request.Headers.ContainsKey("HX-Request"))
+{
+    <p id="event-count" class="fb-count" hx-swap-oob="true">@Model.Events.Count evenemang</p>
+}
 
-<div class="events-grid" id="events-grid">
+<div class="events-grid" id="events-grid" data-take="@Model.Take">
     @foreach (var e in Model.Events)
     {
         var hasImg = !string.IsNullOrEmpty(e.ImageUrl)
@@ -17,7 +22,7 @@
             : null;
         var time = e.StartTime.HasValue ? e.StartTime.Value.ToString("HH:mm") : null;
         var loc = e.Location ?? e.Municipality;
-        <a href="/evenemang/@e.Id" class="event-card" onclick="sessionStorage.setItem('eventsScroll',window.scrollY)">
+        <a href="/evenemang/@e.Id" class="event-card">
             <div class="event-card-image">
                 @if (hasImg)
                 {

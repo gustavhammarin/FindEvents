@@ -9,6 +9,7 @@ public static class ConfigurationServiceExtensions
     {
         services.Configure<LlmSettings>(configuration.GetSection("LlmSettings"));
         services.Configure<MistralSettings>(configuration.GetSection("MistralSettings"));
+        services.AddSingleton<MistralRateLimiter>();
         return services;
     }
 }

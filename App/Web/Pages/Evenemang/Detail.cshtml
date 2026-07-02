@@ -12,7 +12,6 @@
     }
 }
 @section Head {
-    <title>@ViewData["Title"]</title>
     @if (Model.Event is not null)
     {
         <link rel="canonical" href="@Model.CanonicalUrl" />
@@ -29,14 +28,14 @@
         }
         <meta name="twitter:title" content="@ViewData["Title"]" />
         <meta name="twitter:description" content="@Model.Description" />
-        <script type="application/ld+json">@Html.Raw(Model.JsonLd)</script>
+        @Html.Raw($"<script type=\"application/ld+json\">{Model.JsonLd}</script>")
     }
 }
 
 @if (Model.Event is null)
 {
     <div class="detail-wrapper">
-        <a href="/evenemang" class="detail-back" onclick="if(document.referrer.includes('/evenemang')){history.back();return false;}">
+        <a href="/evenemang" class="detail-back">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M15 18l-6-6 6-6"/>
             </svg>
@@ -48,7 +47,7 @@
 else
 {
     <div class="detail-wrapper">
-        <a href="/evenemang" class="detail-back" onclick="if(document.referrer.includes('/evenemang')){history.back();return false;}">
+        <a href="/evenemang" class="detail-back">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M15 18l-6-6 6-6"/>
             </svg>

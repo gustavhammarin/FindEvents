@@ -25,7 +25,8 @@ App/                    ASP.NET Core app
   Embedder/             Mistral embedding + category classifier
   wwwroot/              Static assets (css/app.css, js/htmx-filters.js)
 Tests/                  xunit tests
-docker-compose.yaml
+docker-compose.yaml     Dev infra (postgres + pgadmin)
+docker-compose.prod.yaml  Production (app + postgres + Caddy)
 ```
 
 ## Frontend
@@ -63,7 +64,7 @@ Filters: text search (trigram fuzzy + semantic), kategori, plats, startdatum (cu
 | [gnosjoandan.com](https://www.gnosjoandan.com) | Gnosjö |
 | [vaggeryd.se](https://www.vaggeryd.se) | Vaggeryd |
 
-Scraping runs every 6 hours. Already-saved links are skipped before any LLM call. Each event gets one of 15 fixed Swedish categories — picked by the LLM during extraction, or by keyword scoring for structured sources.
+Scraping runs every 24 hours. Already-saved links are skipped before any LLM call. Each event gets one of 15 fixed Swedish categories — picked by the LLM during extraction, or by keyword scoring for structured sources.
 
 ---
 
@@ -77,10 +78,10 @@ Scraping runs every 6 hours. Already-saved links are skipped before any LLM call
 ### 1. Configure secrets
 
 ```bash
-cp App/appsettings.Development.json.example App/appsettings.Development.json
+cp .env.example .env
 ```
 
-Fill in `ConnectionStrings.DefaultConnection`, `MistralSettings.ApiKey`, and optionally `LlmSettings` (local oMLX server).
+One file for everything — Postgres credentials, connection string, `MistralSettings__ApiKey`, admin password. Loaded automatically by both the app (DotNetEnv) and docker compose.
 
 ### 2. Start the database
 
@@ -106,14 +107,36 @@ dotnet test Tests/Tests.csproj
 
 ## Configuration
 
-| File | Contains |
-|---|---|
-| `.env` | Docker Compose variables (Postgres credentials, ports) |
-| `App/appsettings.Development.json` | `ConnectionStrings`, `MistralSettings`, `LlmSettings`, `Scraper:Enabled` |
+All secrets and environment-specific config live in a single gitignored `.env` at the repo root (template: `.env.example`). App settings use double-underscore keys: `MistralSettings__ApiKey` → `MistralSettings:ApiKey`. Non-secret defaults live in `App/appsettings.json`.
 
-**LLM extraction** — `MistralSettings:ApiKey` uses Mistral API. Falls back to local OpenAI-compatible server (`LlmSettings:BaseUrl`, default `http://127.0.0.1:8000/v1`).
+**LLM extraction** — `MistralSettings__ApiKey` uses Mistral API. Falls back to local OpenAI-compatible server (`LlmSettings:BaseUrl`, default `http://127.0.0.1:8000/v1`) when the key is empty.
 
-**Disable scraper** — set `Scraper:Enabled: false` (or env `Scraper__Enabled=false`).
+**Disable scraper** — set `Scraper__Enabled=false`.
+
+**Admin page** — `/admin` shows scrape/embedding run history and database stats. Protected by HTTP Basic Auth (user `admin`, password `Admin__Password`). Disabled (404) when no password is set.
+
+---
+
+## Deployment
+
+Docker Compose on any VPS: app + Postgres + [Caddy](https://caddyserver.com) (automatic HTTPS via Let's Encrypt).
+
+```bash
+# On the server
+git clone git@github.com:gustavhammarin/FindEvents.git && cd FindEvents
+cp .env.example .env    # fill in real values; set DOMAIN and Host=postgres in the connection string
+docker compose -f docker-compose.prod.yaml up -d --build
+```
+
+Point the domain's DNS A record at the server before starting — Caddy needs it to issue the TLS certificate. Migrations run automatically at app startup.
+
+Update to a new version:
+
+```bash
+git pull && docker compose -f docker-compose.prod.yaml up -d --build
+```
+
+**Health** — `/healthz` returns 200 when the app and database are up (used by the compose healthcheck; also handy for any external uptime monitor).
 
 ---
 
@@ -127,7 +150,7 @@ Semantic search: query embedded via Mistral → cosine similarity on pgvector co
 
 ## Adding a scraper source
 
-All sources implement `IEventSource` and are auto-discovered at startup — no manual registration needed.
+All sources implement `IEventSource` and are registered in `App/Scraper/ScraperServiceExtensions.cs`.
 
 **Structured source**: implement `IEventSource` in `App/Scraper/Sources/`.
 

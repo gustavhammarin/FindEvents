@@ -13,14 +13,17 @@ namespace App.Scraper.Extractors;
 public class MistralExtractor : ILlmExtractor
 {
     private readonly HttpClient _http;
+    private readonly MistralRateLimiter _rateLimiter;
     private readonly ILogger<MistralExtractor> _logger;
     private readonly string _model;
 
     private const int MaxTextLength = 6000;
+    private const int MaxAttempts = 4;
 
-    public MistralExtractor(HttpClient http, IOptions<MistralSettings> settings, ILogger<MistralExtractor> logger)
+    public MistralExtractor(HttpClient http, MistralRateLimiter rateLimiter, IOptions<MistralSettings> settings, ILogger<MistralExtractor> logger)
     {
         _http = http;
+        _rateLimiter = rateLimiter;
         _model = settings.Value.CompletionModel;
         _logger = logger;
 
@@ -77,17 +80,8 @@ public class MistralExtractor : ILlmExtractor
 
         try
         {
-            var response = await _http.PostAsync("/v1/chat/completions",
-                new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json"), ct);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var body = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Mistral returned {Status} for {Url}: {Body}", response.StatusCode, sourceUrl, body);
-                return null;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct);
+            var json = await SendWithRetryAsync(request, sourceUrl, ct);
+            if (json is null) return null;
             var chatResp = JsonSerializer.Deserialize<ChatCompletionResponse>(json);
             var content = chatResp?.Choices?.FirstOrDefault()?.Message?.Content;
             if (string.IsNullOrWhiteSpace(content)) return null;
@@ -119,11 +113,67 @@ public class MistralExtractor : ILlmExtractor
                 Category = EventCategorizer.Categorize(extracted.Title, extracted.Description)
             };
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Mistral extraction failed for {Url}", sourceUrl);
             return null;
         }
+    }
+
+    /// <summary>Sends the chat completion request, retrying 429/5xx/timeouts with backoff. Returns the response body or null.</summary>
+    private async Task<string?> SendWithRetryAsync(object request, string sourceUrl, CancellationToken ct)
+    {
+        var backoff = TimeSpan.FromSeconds(2);
+
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            await _rateLimiter.WaitAsync(ct);
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.PostAsync("/v1/chat/completions",
+                    new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json"), ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Mistral request failed ({Error}) for {Url}, attempt {Attempt}/{Max}",
+                    ex.Message, sourceUrl, attempt, MaxAttempts);
+                if (attempt == MaxAttempts) return null;
+                await Task.Delay(backoff, ct);
+                backoff *= 2;
+                continue;
+            }
+
+            using (response)
+            {
+                if (response.IsSuccessStatusCode)
+                    return await response.Content.ReadAsStringAsync(ct);
+
+                var status = (int)response.StatusCode;
+                var retryable = status == 429 || status >= 500;
+                if (!retryable || attempt == MaxAttempts)
+                {
+                    var body = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogWarning("Mistral returned {Status} for {Url}: {Body}", response.StatusCode, sourceUrl, body);
+                    return null;
+                }
+
+                var delay = response.Headers.RetryAfter?.Delta ?? backoff;
+                if (status == 429)
+                    _rateLimiter.Penalize(delay);
+                _logger.LogDebug("Mistral {Status} for {Url}, retrying in {Delay}s (attempt {Attempt}/{Max})",
+                    status, sourceUrl, delay.TotalSeconds, attempt, MaxAttempts);
+                await Task.Delay(delay, ct);
+                backoff *= 2;
+            }
+        }
+
+        return null;
     }
 
     private static DateOnly? ParseDate(string? s) =>

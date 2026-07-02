@@ -2,8 +2,9 @@
 <html lang="sv">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111827" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@(ViewData["Title"] ?? "FindEvents – Evenemang i Jönköpings län")</title>
+    <meta name="theme-color" content="#faf8f4" />
     <meta property="og:site_name" content="FindEvents" />
     <meta property="og:locale" content="sv_SE" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -21,7 +22,7 @@
     <main>
         @RenderBody()
     </main>
-    <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+    <script src="/js/htmx.min.js"></script>
     <script src="/js/htmx-filters.js"></script>
 </body>
 </html>

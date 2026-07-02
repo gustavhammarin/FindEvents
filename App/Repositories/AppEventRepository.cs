@@ -6,10 +6,12 @@ namespace App.Repositories;
 
 public class AppEventRepository(AppDbContext context) : IEventRepository
 {
-    public async Task SaveEventsAsync(IEnumerable<EventInfo> events, CancellationToken ct)
+    public async Task<int> SaveEventsAsync(IEnumerable<EventInfo> events, CancellationToken ct)
     {
         var eventList = events
             .Where(e => !string.IsNullOrEmpty(e.Link))
+            .GroupBy(e => e.Link)
+            .Select(g => g.First())
             .ToList();
 
         var links = eventList.Select(e => e.Link).ToList();
@@ -24,10 +26,35 @@ public class AppEventRepository(AppDbContext context) : IEventRepository
             .Select(MapToEvent)
             .ToList();
 
-        if (newEvents.Count == 0) return;
+        if (newEvents.Count == 0) return 0;
 
-        await context.Events.AddRangeAsync(newEvents, ct);
-        await context.SaveChangesAsync(ct);
+        try
+        {
+            await context.Events.AddRangeAsync(newEvents, ct);
+            await context.SaveChangesAsync(ct);
+            return newEvents.Count;
+        }
+        catch (DbUpdateException)
+        {
+            // Unique Link index violation — another source saved the same link
+            // concurrently. Retry one by one so the rest of the batch survives.
+            context.ChangeTracker.Clear();
+            var saved = 0;
+            foreach (var ev in newEvents)
+            {
+                try
+                {
+                    context.Events.Add(ev);
+                    await context.SaveChangesAsync(ct);
+                    saved++;
+                }
+                catch (DbUpdateException)
+                {
+                    context.ChangeTracker.Clear();
+                }
+            }
+            return saved;
+        }
     }
 
     public async Task<HashSet<string>> GetExistingLinksAsync(IEnumerable<string> links)

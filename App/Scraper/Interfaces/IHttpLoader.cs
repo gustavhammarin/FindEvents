@@ -14,6 +14,7 @@ public interface IHttpLoader
 public class HttpLoader : IHttpLoader
 {
     private readonly HttpClient _client;
+    private const int MaxAttempts = 3;
 
     public HttpLoader(HttpClient client)
     {
@@ -26,32 +27,59 @@ public class HttpLoader : IHttpLoader
 
     public async Task<XDocument> LoadXmlAsync(string url, bool isGz)
     {
-        await using var stream = await _client.GetStreamAsync(url);
+        using var resp = await GetWithRetryAsync(url) ?? throw new HttpRequestException($"Failed to fetch {url} after {MaxAttempts} attempts");
+        await using var stream = await resp.Content.ReadAsStreamAsync();
         var xmlStream = isGz
             ? new GZipStream(stream, CompressionMode.Decompress)
             : stream;
-        return XDocument.Load(xmlStream);
+        return await XDocument.LoadAsync(xmlStream, LoadOptions.None, CancellationToken.None);
     }
 
     public async Task<HtmlDocument?> LoadHtmlAsync(string url)
     {
-        try
-        {
-            var resp = await _client.GetAsync(url);
-            if (!resp.IsSuccessStatusCode) return null;
-            var html = await resp.Content.ReadAsStringAsync();
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-            return doc;
-        }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
+        using var resp = await GetWithRetryAsync(url);
+        if (resp is null) return null;
+        var html = await resp.Content.ReadAsStringAsync();
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+        return doc;
     }
 
     public async Task<string> GetStringAsync(string url)
     {
-        return await _client.GetStringAsync(url);
+        using var resp = await GetWithRetryAsync(url);
+        return resp is null ? "" : await resp.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>GET with retry on 5xx/429, network errors and timeouts. Returns null when all attempts fail.</summary>
+    private async Task<HttpResponseMessage?> GetWithRetryAsync(string url)
+    {
+        var backoff = TimeSpan.FromSeconds(1);
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            try
+            {
+                var resp = await _client.GetAsync(url);
+                if (resp.IsSuccessStatusCode) return resp;
+
+                var status = (int)resp.StatusCode;
+                resp.Dispose();
+                if (status != 429 && status < 500) return null;
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+                // HttpClient timeout
+            }
+
+            if (attempt < MaxAttempts)
+            {
+                await Task.Delay(backoff);
+                backoff *= 3;
+            }
+        }
+        return null;
     }
 }

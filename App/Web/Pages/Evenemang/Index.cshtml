@@ -9,7 +9,6 @@
     var canonical = $"{Request.Scheme}://{Request.Host}/evenemang";
 }
 @section Head {
-    <title>@ViewData["Title"]</title>
     <link rel="canonical" href="@canonical" />
     <meta name="description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
     <meta name="robots" content="@(hasActiveFilters ? "noindex, follow" : "index, follow")" />
@@ -19,6 +18,41 @@
     <meta property="og:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
     <meta name="twitter:title" content="@ViewData["Title"]" />
     <meta name="twitter:description" content="Se kommande evenemang i Jönköpings län – musik, teater, sport, familjeaktiviteter och mycket mer." />
+    @if (!hasActiveFilters)
+    {
+        var origin = $"{Request.Scheme}://{Request.Host}";
+        var itemListJson = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = "ItemList",
+            ["itemListElement"] = Model.Events.Take(10).Select((e, i) => new Dictionary<string, object>
+            {
+                ["@type"] = "ListItem",
+                ["position"] = i + 1,
+                ["name"] = e.Title,
+                ["url"] = $"{origin}/evenemang/{e.Id}"
+            }).ToList()
+        });
+        var webSiteJson = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = "WebSite",
+            ["name"] = "FindEvents",
+            ["url"] = origin,
+            ["potentialAction"] = new Dictionary<string, object>
+            {
+                ["@type"] = "SearchAction",
+                ["target"] = new Dictionary<string, object>
+                {
+                    ["@type"] = "EntryPoint",
+                    ["urlTemplate"] = $"{origin}/evenemang?q={{search_term_string}}"
+                },
+                ["query-input"] = "required name=search_term_string"
+            }
+        });
+        @Html.Raw($"<script type=\"application/ld+json\">{itemListJson}</script>")
+        @Html.Raw($"<script type=\"application/ld+json\">{webSiteJson}</script>")
+    }
 }
 
 <div class="sticky-filters">

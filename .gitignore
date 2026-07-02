@@ -480,12 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
-API/appsettings.json
-API/reactivities.db
-.idea/.idea.Reactivities/.idea/.gitignore
-API/reactivities.db-wal
-API/reactivities.db-shm
-
-# Local secrets — use the .example templates instead
+# Local secrets — copy .env.example to .env
 .env
-API/appsettings.Development.json
+**/appsettings.Development.json

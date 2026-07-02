@@ -4,88 +4,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Backend
 ```bash
-# Start infra (postgres only)
+# Start dev infra (postgres + pgadmin)
 docker compose up postgres -d
 
-# Start all infra (postgres + elasticsearch + kibana)
-docker compose up -d
-
-# Run API (auto-migrates on startup, starts scraper background service)
-dotnet run --project API
+# Run app (auto-migrates on startup, starts scraper background service)
+dotnet run --project App
 
 # Add EF Core migration
-dotnet ef migrations add <MigrationName> --project Persistence --startup-project API
+dotnet ef migrations add <MigrationName> --project App
 
 # Build solution
 dotnet build FindEvents.sln
 
 # Run tests (xunit)
 dotnet test Tests/Tests.csproj
+
+# Production deploy (app + postgres + Caddy with auto-HTTPS)
+docker compose -f docker-compose.prod.yaml up -d --build
 ```
-
-### Frontend
-HTMX + Razor Pages — served by the App at http://localhost:5001. No separate build step.
-Static assets: `App/wwwroot/` (css/app.css, js/htmx-filters.js). Razor Pages: `App/Web/Pages/`.
-
-## Architecture
-
-**Clean Architecture**, vertical slice features in API (MediatR removed):
-
-```
-App/Persistence/         → EF Core DbContext + migrations (AppDbContext)
-App/                     → EventService, scraper pipeline, DI wiring
-App/Web/Pages/           → Razor Pages frontend (HTMX; pages root = /Web/Pages)
-  Shared/_Layout.cshtml  → HTML shell (includes HTMX CDN + htmx-filters.js)
-  Evenemang/Index.cshtml → /evenemang full page + handler=Cards partial
-  Evenemang/Detail.cshtml→ /evenemang/{id} detail page
-  Evenemang/_EventCards.cshtml → partial view for event grid (returned by HTMX)
-App/wwwroot/             → Static assets (css/app.css, js/htmx-filters.js)
-App/Scraper/             → Background scraping library (sources + LLM extraction + categorization)
-```
-
-### Request flow
-Minimal API endpoints, no controllers for features. `API/Features/Events/EventsModule.cs` maps `GET /api/events` → `GetEventsHandler.HandleAsync(GetEventsQuery)` → `PagedList<EventDto, EventCursor?>`.
-
-**Module pattern**: implement `API/Modules/IModule` (`RegisterServices` + `MapEndpoints`) — auto-discovered and wired in `Program.cs` via reflection. New feature = new folder under `API/Features/` with Module + Query + Handler.
-
-### Pagination
-Cursor-based (`EventCursor { StartDate, Id }`). Query params: `cursorStartDate`, `cursorId`, `pageSize`, `search`, `municipality`, `category`, `startDate`. Default page size 16, max 50.
-
-### Search
-`ElasticService.SearchQuery()` returns matching event IDs → EF `WHERE id IN (...)`. Falls back to SQL `LIKE` when Elasticsearch is unreachable or returns no results. Elasticsearch is optional — `_client` is null when unconfigured.
-
-### Scraper system
-All sources implement `IEventSource` (`Name` + `FetchAsync`) — auto-registered in `Program.cs` via reflection, no manual DI for new sources.
-
-Two kinds of sources in `EventScraper/Sources/`:
-- **Structured** (no LLM): `JkpgSource` (embedded JSON), `NassjoSource`, `HaboSource`, `VarnamoSource` (Cruncho API), `TranasSource` (WP REST + LLM for dates in free text)
-- **LLM-based**: subclass `LlmHtmlSource` — discovers URLs (`FromSitemapAsync` / `FromListPageAsync`), fetches pages, strips HTML (`HtmlTextExtractor`), sends text to `ILlmExtractor`. Skips links already in DB before any LLM call. Small ones live together in `LlmSources.cs` (Mullsjö, Sävsjö, Gislaved, Eksjö, Vetlanda, Aneby, Gnosjö, Vaggeryd)
-
-`ScraperPipeline.RunAllAsync()` runs all `IEventSource` with `SemaphoreSlim(5)`, dedupes by `(Title.lower, StartDate)`, backfills empty `Category` via `EventCategorizer`, saves per source via `IEventRepository`. `ScraperHostedService` runs the pipeline every 6 hours; disable with `Scraper:Enabled=false` (appsettings) or env `Scraper__Enabled=false`.
-
-### LLM extraction
-`MlxExtractor` (`ILlmExtractor`) calls a local oMLX server (OpenAI-compatible, `LlmSettings` in appsettings: BaseUrl/Model/ApiKey). Plain completion + JSON clipping — `response_format: json_object` is broken in oMLX. Strips Qwen `<think>` blocks. Prompt asks for title/dates/times/location/description/imageUrl/category in one call.
-
-### Categorization
-`EventScraper/Categorization/EventCategorizer.cs` = single source of truth, 15 fixed Swedish categories:
-- LLM sources: model picks category in the extraction prompt; answer validated with `EventCategorizer.Normalize()` (case/och-&/partial tolerant)
-- Structured sources + invalid LLM answers: `EventCategorizer.Categorize(title, description)` — whole-word keyword scoring, title hits weigh 3x, priority list breaks ties, default `"Övrigt"`
-- Tests in `Tests/Events/EventCategorizerTests.cs`
-
-### Adding a scraper source
-LLM site: subclass `LlmHtmlSource` (implement `Name`, `Municipality`, `BaseUrl`, `DiscoverUrlsAsync`). Structured site: implement `IEventSource` directly. Done — auto-discovered at startup.
-
-### Frontend (HTMX + Razor Pages)
-Filter bar: `<form id="filters">` with `hx-get="/evenemang?handler=Cards"` triggers on `change` / `keyup delay:350ms`. Response replaces `#events-container` with `_EventCards.cshtml` partial (includes OOB swap for `#event-count`).
-
-Load more: button inside `_EventCards.cshtml` uses `hx-include="#filters"` + `hx-vals={"ta": N+32}` — server returns all N+32 events, full replace of `#events-container`.
-
-Custom dropdowns/datepicker: vanilla JS in `htmx-filters.js` — manages hidden `<input>` elements inside the form and dispatches `change` events to trigger HTMX. URL sync runs on `htmx:afterSettle` via `history.replaceState`.
 
 ## Configuration
 
-`API/appsettings.Development.json` and `.env` are gitignored — copy from `API/appsettings.Development.json.example` / `.env.example`. Needs `ConnectionStrings.DefaultConnection`, `ElasticSettings.Url`/`DefaultIndex`/`Password`, and `LlmSettings.BaseUrl`/`Model`/`ApiKey` (local oMLX server, port 8000). Dev Elasticsearch uses self-signed cert + `AllowAll` callback.
+Single gitignored `.env` at repo root holds ALL secrets and environment config — loaded by DotNetEnv in `Program.cs` (and `AppDbContextFactory` for design-time EF). Template: `.env.example`. App settings use `Section__Key` env var form. Non-secret defaults: `App/appsettings.json`.
 
-`Domain.Event.Link` has a unique index — deduplication relies on this at the DB level too.
+Key vars: `ConnectionStrings__DefaultConnection`, `MistralSettings__ApiKey`, `Scraper__Enabled`, `Admin__Password` (empty = /admin returns 404), `DOMAIN` (Caddy).
+
+## Architecture
+
+Single ASP.NET Core project (`App/`), .NET 10. HTMX + Razor Pages frontend, no API controllers, no separate frontend build.
+
+```
+App/Program.cs           → DI wiring, minimal endpoints (robots.txt, sitemap.xml), auto-migration
+App/Persistence/         → EF Core AppDbContext + migrations; Event, ScrapeRun/ScrapeRunSource entities
+App/Repositories/        → IEventRepository (SaveEventsAsync returns inserted count; dedupes by unique Link)
+App/Services/            → EventService: cursor pagination, trigram + semantic search, similar events
+App/Embedder/            → MistralEmbeddingService (+retry/rate limit), EventEmbeddingService backfill,
+                           CategoryClassifierService (embedding cosine → 15 categories)
+App/Scraper/             → Sources + LLM extraction + categorization + pipeline
+App/Web/Pages/           → Razor Pages (pages root = /Web/Pages)
+  Evenemang/             → /evenemang (filter grid + handler=Cards partial), /evenemang/{id}
+  Admin/                 → /admin: scrape/embed run history + DB stats (HTTP Basic Auth, user "admin")
+App/wwwroot/             → css/app.css, js/htmx-filters.js, js/htmx.min.js (self-hosted)
+Dockerfile               → multi-stage publish; docker-compose.prod.yaml adds postgres + Caddy
+```
+
+### Scraper pipeline
+All sources implement `IEventSource` (`Name` + `FetchAsync`), registered in `ScraperServiceExtensions`. `ScraperPipeline.RunAllAsync()` runs all sources with `SemaphoreSlim(5)`, dedupes by `(Title.lower, StartDate)`, backfills `Category`, saves via `IEventRepository`, deletes past events. `ScraperHostedService` runs every 24h (`Scraper__Enabled=false` disables), records every run to the `ScrapeRuns` table (per-source counts, embedding stats, errors) — shown on /admin.
+
+Two source kinds in `App/Scraper/Sources/`:
+- **Structured** (no LLM): `JkpgSource`, `HaboSource`, `VarnamoSource` (Cruncho), `SvSource`, `TranasSource` (WP REST)
+- **LLM-based**: subclass `LlmHtmlSource` — discovers URLs (`FromSitemapAsync`/`FromListPageAsync`), skips links already in DB before any LLM call, strips HTML, sends text to `ILlmExtractor`. Small ones live in `LlmSources.cs`
+
+### LLM extraction & resilience
+`MistralExtractor` (`ILlmExtractor`) is used when `MistralSettings__ApiKey` is set; otherwise `MlxExtractor` (local oMLX, OpenAI-compatible). All Mistral calls (extraction + embeddings) go through the singleton `MistralRateLimiter` (~1 req/s, free tier) and retry 429/5xx/timeouts with Retry-After-aware backoff. `HttpLoader` retries transient fetch failures. Failed extractions are self-healing: the event's link never reaches the DB, so the next run retries it.
+
+### Embeddings & categorization
+After each scrape (and at startup), `EventEmbeddingService.RunAsync()` embeds events with `Embedding == null` and classifies only those newly embedded events via `CategoryClassifierService` (cosine distance to 15 fixed Swedish category description embeddings). Nothing new → zero API calls and zero DB scans. If category descriptions ever change, force a full reclassification with `UPDATE "Events" SET "Embedding" = NULL` (they'll be re-embedded and re-classified next run). Keyword fallback: `EventCategorizer.Categorize()` in `App/Scraper/Categorization/` (tests in `Tests/Events/EventCategorizerTests.cs`).
+
+### Search
+`EventService.GetEventsAsync`: SQL ILIKE + pg_trgm trigram similarity. Semantic similar-events via pgvector cosine on the detail page. No Elasticsearch.
+
+### Frontend (HTMX + Razor Pages)
+Filter bar: `<form id="filters">` with `hx-get="/evenemang?handler=Cards"` on `change`/`keyup delay:350ms`; response replaces `#events-container` with `_EventCards.cshtml` partial (OOB swap for `#event-count`). Load more: button re-requests with `ta=N+32`, full replace. Custom dropdowns/datepicker: vanilla JS in `htmx-filters.js`. URL sync via `history.replaceState` on `htmx:afterSettle`.
+
+### SEO
+`_Layout.cshtml` owns `<title>` (from `ViewData["Title"]`). Index: canonical, OG/Twitter meta, ItemList + WebSite JSON-LD, `noindex` when filters active. Detail: schema.org Event JSON-LD, OG image, 404 status for missing events. `robots.txt` + `sitemap.xml` are minimal endpoints in `Program.cs`. `UseForwardedHeaders` trusts Caddy's X-Forwarded-Proto/Host so generated URLs are https.
+
+### Adding a scraper source
+LLM site: subclass `LlmHtmlSource` (implement `Name`, `Municipality`, `BaseUrl`, `DiscoverUrlsAsync`). Structured site: implement `IEventSource`. Register in `ScraperServiceExtensions.AddScraperServices`.
+
+`Domain.Event.Link` has a unique index — dedup relies on this at the DB level; `SaveEventsAsync` falls back to row-by-row insert on unique violations.

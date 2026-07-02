@@ -24,7 +24,10 @@ public class DetailModel(EventService eventService) : PageModel
     {
         Event = await eventService.GetByIdAsync(Id);
         if (Event is null)
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
             return Page();
+        }
 
         CanonicalUrl = $"{Request.Scheme}://{Request.Host}/evenemang/{Id}";
         Similar = await eventService.GetSimilarEventsAsync(Id, count: 6);

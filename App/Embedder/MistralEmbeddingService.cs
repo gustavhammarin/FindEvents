@@ -5,9 +5,14 @@ using Pgvector;
 
 namespace App.Embedder;
 
-public class MistralEmbeddingService(HttpClient http, IOptions<MistralSettings> settings, ILogger<MistralEmbeddingService> logger)
+public class MistralEmbeddingService(
+    HttpClient http,
+    MistralRateLimiter rateLimiter,
+    IOptions<MistralSettings> settings,
+    ILogger<MistralEmbeddingService> logger)
 {
     private readonly string _model = settings.Value.EmbeddingModel;
+    private const int MaxAttempts = 5;
 
     public async Task<Vector?> EmbedAsync(string text, CancellationToken ct = default)
     {
@@ -17,22 +22,29 @@ public class MistralEmbeddingService(HttpClient http, IOptions<MistralSettings> 
 
     public async Task<List<Vector?>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
-        var delay = TimeSpan.FromSeconds(2);
-        for (var attempt = 0; attempt < 5; attempt++)
+        var backoff = TimeSpan.FromSeconds(2);
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             try
             {
+                await rateLimiter.WaitAsync(ct);
+
                 var response = await http.PostAsJsonAsync("v1/embeddings", new
                 {
                     model = _model,
                     input = texts.Select(Truncate).ToArray()
                 }, ct);
 
-                if ((int)response.StatusCode == 429)
+                var status = (int)response.StatusCode;
+                if (status == 429 || status >= 500)
                 {
-                    logger.LogDebug("Mistral 429 rate limit, waiting {Delay}s (attempt {Attempt})", delay.TotalSeconds, attempt + 1);
+                    var delay = response.Headers.RetryAfter?.Delta ?? backoff;
+                    if (status == 429)
+                        rateLimiter.Penalize(delay);
+                    logger.LogDebug("Mistral {Status} on embeddings, waiting {Delay}s (attempt {Attempt}/{Max})",
+                        status, delay.TotalSeconds, attempt, MaxAttempts);
                     await Task.Delay(delay, ct);
-                    delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
+                    backoff = TimeSpan.FromSeconds(Math.Min(backoff.TotalSeconds * 2, 60));
                     continue;
                 }
 
@@ -43,18 +55,21 @@ public class MistralEmbeddingService(HttpClient http, IOptions<MistralSettings> 
                     .Select(d => (Vector?)new Vector(d.Embedding))
                     .ToList() ?? [];
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Mistral embed batch failed, count={Count}", texts.Count);
-                return Enumerable.Repeat<Vector?>(null, texts.Count).ToList();
+                logger.LogWarning(ex, "Mistral embed batch failed (attempt {Attempt}/{Max}), count={Count}",
+                    attempt, MaxAttempts, texts.Count);
+                if (attempt == MaxAttempts) break;
+                await Task.Delay(backoff, ct);
+                backoff = TimeSpan.FromSeconds(Math.Min(backoff.TotalSeconds * 2, 60));
             }
         }
 
-        logger.LogWarning("Mistral embed gave up after 5 attempts (rate limited), count={Count}", texts.Count);
+        logger.LogWarning("Mistral embed gave up after {Max} attempts, count={Count}", MaxAttempts, texts.Count);
         return Enumerable.Repeat<Vector?>(null, texts.Count).ToList();
     }
 

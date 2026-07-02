@@ -8,9 +8,12 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
     {
+        DotNetEnv.Env.TraversePath().Load();
+
         var config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.Development.json", optional: false)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var connStr = config.GetConnectionString("DefaultConnection");

@@ -36,26 +36,56 @@
         function buildMenu() {
             var menu = document.createElement('div');
             menu.className = 'dd-menu';
-            menu.setAttribute('role', 'listbox');
+            // Keep-open multiselect: clicks inside must not reach the
+            // document-level outside-click handler that closes all popups.
+            menu.addEventListener('click', function (e) { e.stopPropagation(); });
+
+            // Sheet header — only visible on mobile (bottom sheet mode)
+            var head = document.createElement('div');
+            head.className = 'dd-sheet-head';
+            var title = document.createElement('span');
+            title.className = 'dd-sheet-title';
+            title.textContent = placeholder;
+            var done = document.createElement('button');
+            done.type = 'button';
+            done.className = 'dd-sheet-done';
+            done.textContent = 'Klar';
+            done.addEventListener('click', closeDropdown);
+            head.appendChild(title);
+            head.appendChild(done);
+            menu.appendChild(head);
+
+            var list = document.createElement('div');
+            list.setAttribute('role', 'listbox');
+            list.setAttribute('aria-multiselectable', 'true');
+            menu.appendChild(list);
+
+            renderList(list);
+            return menu;
+        }
+
+        // Multi-select: menu stays open, options re-render in place on each toggle
+        function renderList(list) {
+            list.innerHTML = '';
 
             if (selected.length > 0) {
                 var resetBtn = document.createElement('button');
                 resetBtn.type = 'button';
                 resetBtn.className = 'dd-option dd-option-reset';
                 resetBtn.setAttribute('role', 'option');
-                resetBtn.textContent = 'Alla';
+                resetBtn.textContent = 'Rensa val';
                 resetBtn.addEventListener('click', function () {
                     selected = [];
                     renderHiddenInputs();
                     updateToggle();
-                    closeDropdown();
+                    renderList(list);
                     dispatchChange();
                 });
-                menu.appendChild(resetBtn);
+                list.appendChild(resetBtn);
 
                 var div = document.createElement('div');
                 div.className = 'dd-divider';
-                menu.appendChild(div);
+                list.appendChild(div);
             }
 
             options.forEach(function (opt) {
@@ -84,14 +114,12 @@
                     }
                     renderHiddenInputs();
                     updateToggle();
-                    closeDropdown();
+                    renderList(list);
                     dispatchChange();
                 });
 
-                menu.appendChild(btn);
+                list.appendChild(btn);
             });
-
-            return menu;
         }
 
         function openDropdown() {
@@ -194,6 +222,10 @@
             var monthLabel = MONTHS_SV[month] + ' ' + year;
 
             popup.innerHTML =
+                '<div class="dd-sheet-head">' +
+                    '<span class="dd-sheet-title">Datum</span>' +
+                    '<button type="button" class="dd-sheet-done">Klar</button>' +
+                '</div>' +
                 '<div class="dp-header">' +
                     '<button type="button" class="dp-nav dp-prev" aria-label="Föregående månad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>' +
                     '<span class="dp-month-label">' + monthLabel + '</span>' +
@@ -204,6 +236,7 @@
 
             popup.addEventListener('click', function (e) { e.stopPropagation(); });
 
+            popup.querySelector('.dd-sheet-done').addEventListener('click', closeDatePicker);
             popup.querySelector('.dp-prev').addEventListener('click', function () {
                 viewDate.setMonth(viewDate.getMonth() - 1);
                 rebuildCalendar(popup);
@@ -376,6 +409,12 @@
         var datum = form.querySelector('input[type=hidden][name=datum]');
         if (datum && datum.value) params.set('datum', datum.value);
 
+        // Keep "load more" state in the URL so returning from a detail page
+        // re-renders the same number of cards (scroll position depends on it).
+        var grid = document.getElementById('events-grid');
+        var take = grid ? parseInt(grid.dataset.take || '32', 10) : 32;
+        if (take > 32) params.set('ta', String(take));
+
         var qs = params.toString();
         history.replaceState(null, '', '/evenemang' + (qs ? '?' + qs : ''));
     }
@@ -398,9 +437,38 @@
         }
     }
 
-    // ─── Scroll restore ────────────────────────────────────────────────────────
+    // ─── List state: remember where the user was, restore on return ───────────
+
+    // Card click (list page): remember scroll + full list URL (filters, ta).
+    // Delegated so it survives HTMX re-renders of the grid.
+    function initListStateTracking() {
+        document.addEventListener('click', function (e) {
+            if (e.target.closest && e.target.closest('.event-card')) {
+                sessionStorage.setItem('eventsScroll', String(window.scrollY));
+                sessionStorage.setItem('eventsUrl', location.href);
+            }
+        });
+    }
+
+    // Detail page: "Alla evenemang" goes back to the exact list view the user
+    // left, no matter how many detail pages deep they've navigated.
+    function initBackToList() {
+        document.querySelectorAll('.detail-back').forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                var url = sessionStorage.getItem('eventsUrl');
+                if (url) {
+                    e.preventDefault();
+                    location.href = url;
+                }
+            });
+        });
+    }
 
     function restoreScroll() {
+        // Only on the list page — consuming the key on a detail page would
+        // both scroll the wrong page and lose the position for the real return.
+        if (!document.getElementById('filters')) return;
+
         var y = sessionStorage.getItem('eventsScroll');
         if (y) {
             sessionStorage.removeItem('eventsScroll');
@@ -416,6 +484,8 @@
         document.querySelectorAll('.dd-root[data-dd-name]').forEach(initDropdown);
         document.querySelectorAll('.dp-root[data-dp-name]').forEach(initDatePicker);
         initClearButton();
+        initListStateTracking();
+        initBackToList();
         restoreScroll();
 
         document.addEventListener('htmx:afterSettle', function (evt) {
