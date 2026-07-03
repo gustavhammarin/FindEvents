@@ -79,6 +79,11 @@ public class AppEventRepository(AppDbContext context) : IEventRepository
             .ExecuteDeleteAsync();
     }
 
+    public async Task<Event?> GetEventByIdAsync(Guid id, CancellationToken ct)
+    {
+        return await context.Events.FirstOrDefaultAsync(ev => ev.Id == id.ToString(), ct);
+    }
+
     private static Event MapToEvent(EventInfo e) => new()
     {
         Id = e.Id,

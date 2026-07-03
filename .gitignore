@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 # Local secrets — copy .env.example to .env
 .env
 **/appsettings.Development.json
+
+
+/img-cache

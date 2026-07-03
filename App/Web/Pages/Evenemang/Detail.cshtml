@@ -23,8 +23,8 @@
         <meta property="og:description" content="@Model.Description" />
         @if (Model.HasImage)
         {
-            <meta property="og:image" content="@Model.Event.ImageUrl" />
-            <meta name="twitter:image" content="@Model.Event.ImageUrl" />
+            <meta property="og:image" content="@Model.AbsoluteImageUrl" />
+            <meta name="twitter:image" content="@Model.AbsoluteImageUrl" />
         }
         <meta name="twitter:title" content="@ViewData["Title"]" />
         <meta name="twitter:description" content="@Model.Description" />
@@ -58,7 +58,7 @@ else
             <div class="detail-image-wrap">
                 @if (Model.HasImage)
                 {
-                    <img src="@Model.Event.ImageUrl" alt="@Model.Event.Title" class="detail-image" />
+                    <img src="/img/@Model.Id" alt="@Model.Event.Title" class="detail-image" />
                 }
                 else
                 {
@@ -144,7 +144,7 @@ else
                             <div class="similar-card-image">
                                 @if (hasImg)
                                 {
-                                    <img src="@e.ImageUrl" alt="@e.Title" loading="lazy" />
+                                    <img src="/img/@e.Id" alt="@e.Title" loading="lazy" />
                                 }
                                 else
                                 {

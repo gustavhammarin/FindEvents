@@ -1,3 +1,4 @@
+using App.Persistence;
 using App.Scraper.Models;
 
 namespace App.Repositories;
@@ -9,4 +10,5 @@ public interface IEventRepository
     Task<HashSet<string>> GetExistingLinksAsync(IEnumerable<string> links);
     Task<HashSet<string>> GetLinksBySourceAsync(string source);
     Task<int> DeleteOldEventsAsync(DateOnly cutoff);
+    Task<Event?> GetEventByIdAsync(Guid id, CancellationToken ct);
 }

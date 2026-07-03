@@ -18,6 +18,7 @@ public class DetailModel(EventService eventService) : PageModel
     public string? LocationText { get; private set; }
     public string ExternalLink { get; private set; } = "#";
     public bool HasImage { get; private set; }
+    public string AbsoluteImageUrl { get; private set; } = "";
     public string JsonLd { get; private set; } = "{}";
 
     public async Task<IActionResult> OnGetAsync()
@@ -35,6 +36,8 @@ public class DetailModel(EventService eventService) : PageModel
         HasImage = !string.IsNullOrEmpty(Event.ImageUrl)
             && !Event.ImageUrl.Contains("placeholder")
             && Event.ImageUrl.StartsWith("http");
+        if (HasImage)
+            AbsoluteImageUrl = $"{Request.Scheme}://{Request.Host}/img/{Id}";
 
         Description = string.IsNullOrEmpty(Event.Description)
             ? null
@@ -89,7 +92,7 @@ public class DetailModel(EventService eventService) : PageModel
         var loc = JsonEscape(Event.Location ?? Event.Municipality ?? "");
         var municipality = JsonEscape(Event.Municipality ?? "Jönköping");
         var url = JsonEscape(CanonicalUrl);
-        var img = HasImage ? JsonEscape(Event.ImageUrl ?? "") : "";
+        var img = HasImage ? JsonEscape(AbsoluteImageUrl) : "";
 
         var sb = new System.Text.StringBuilder();
         sb.Append("{\"@context\":\"https://schema.org\",\"@type\":\"Event\"");
