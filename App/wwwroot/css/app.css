@@ -1,23 +1,41 @@
+/* ── Typography ─────────────────────────────────────────────────────────────── */
+
+/* Display face: Gloock — used sparingly (wordmark, page + detail titles). */
+@font-face {
+    font-family: "Gloock";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/gloock-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+2013, U+2014, U+2018-201F;
+}
+
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 
+/* "Tändstickan i dagsljus": Jönköping är tändsticksstaden — varmt papper,
+   djup espresso-text, lågans amber. Hög kontrast (AAA för brödtext). */
 :root {
-    --bg: #faf8f4;
+    color-scheme: light;
+    --bg: #fbf8f2;
     --surface: #ffffff;
-    --surface-warm: #f4f0e8;
-    --border: #eae4d9;
-    --border-strong: #dcd4c4;
-    --text: #292524;
-    --text-strong: #1c1917;
-    --text-secondary: #6f6a63;
-    --text-muted: #a39d94;
-    --accent: #c2571f;
-    --accent-strong: #a84617;
-    --accent-soft: #fbeee2;
-    --accent-soft-border: #f0d5bd;
+    --surface-warm: #f3ede2;
+    --border: #e7dfd1;
+    --border-strong: #d5c9b5;
+    --text: #2b2115;
+    --text-strong: #1a1309;
+    --text-secondary: #5c5245;
+    --text-muted: #857767;
+    --accent: #b04e14;
+    --accent-strong: #8f3d0e;
+    --accent-soft: #f9ecdd;
+    --accent-soft-border: #eccfab;
+    --ember: #c2571f;
+    --cta-text: #1c0f04;
+    --font-display: "Gloock", Georgia, "Times New Roman", serif;
     --radius-card: 1rem;
-    --shadow-card: 0 1px 2px rgb(28 25 23 / 0.04), 0 4px 12px rgb(28 25 23 / 0.05);
-    --shadow-card-hover: 0 2px 4px rgb(28 25 23 / 0.06), 0 14px 28px rgb(28 25 23 / 0.10);
-    --shadow-pop: 0 12px 32px -8px rgb(28 25 23 / 0.18), 0 4px 12px -4px rgb(28 25 23 / 0.08);
+    --shadow-card: 0 1px 2px rgb(43 33 21 / 0.05), 0 4px 12px rgb(43 33 21 / 0.06);
+    --shadow-card-hover: 0 2px 4px rgb(43 33 21 / 0.07), 0 14px 28px rgb(43 33 21 / 0.12);
+    --shadow-pop: 0 12px 32px -8px rgb(43 33 21 / 0.2), 0 4px 12px -4px rgb(43 33 21 / 0.1);
 }
 
 *, *::before, *::after {
@@ -33,12 +51,19 @@ html, body {
     -webkit-text-size-adjust: 100%;
     background: var(--bg);
     color: var(--text);
-    font-size: 16px;
-    line-height: 1.5;
+    /* 17px root scales the whole rem-based UI up ~6% — readability for older
+       visitors without redesigning every component. */
+    font-size: 17px;
+    line-height: 1.6;
 }
 
 html {
     scrollbar-gutter: stable;
+}
+
+::selection {
+    background: rgba(229, 142, 58, 0.35);
+    color: var(--text-strong);
 }
 
 .hidden {
@@ -50,7 +75,7 @@ html.scroll-locked {
 }
 
 :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 3px solid var(--accent);
     outline-offset: 2px;
 }
 
@@ -124,7 +149,7 @@ html.scroll-locked {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(251, 248, 242, 0.85);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
@@ -133,12 +158,30 @@ html.scroll-locked {
     align-items: center;
 }
 
+/* Glödlinjen — the smoldering ember under the header. */
+.site-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(229, 142, 58, 0.7) 28%,
+        rgba(194, 87, 31, 0.95) 50%,
+        rgba(229, 142, 58, 0.4) 74%,
+        transparent 96%);
+}
+
 .site-logo {
-    font-weight: 700;
-    font-size: 1.0625rem;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.375rem;
     color: var(--text-strong);
     text-decoration: none;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
 }
 
 .site-logo::after {
@@ -204,8 +247,9 @@ html.scroll-locked {
     border: none;
     outline: none;
     background: transparent;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: var(--text-strong);
+    caret-color: var(--accent);
     font-family: inherit;
     padding: 0;
 }
@@ -455,7 +499,7 @@ html.scroll-locked {
 @media (max-width: 639px) {
     .dd-backdrop,
     .dp-backdrop {
-        background: rgba(28, 25, 23, 0.4);
+        background: rgba(43, 33, 21, 0.4);
         animation: fade-in 180ms ease-out;
     }
 
@@ -477,7 +521,7 @@ html.scroll-locked {
         border-radius: 1.375rem 1.375rem 0 0;
         border: none;
         padding: 0 0.875rem calc(0.875rem + env(safe-area-inset-bottom));
-        box-shadow: 0 -12px 40px rgb(28 25 23 / 0.25);
+        box-shadow: 0 -12px 40px rgb(43 33 21 / 0.28);
         animation: sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
     }
 
@@ -692,7 +736,7 @@ html.scroll-locked {
 .dp-day.dp-selected {
     background: var(--accent);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .dp-day.dp-selected:hover {
@@ -721,7 +765,7 @@ html.scroll-locked {
         border-radius: 1.375rem 1.375rem 0 0;
         border: none;
         padding: 0 1.125rem calc(1.125rem + env(safe-area-inset-bottom));
-        box-shadow: 0 -12px 40px rgb(28 25 23 / 0.25);
+        box-shadow: 0 -12px 40px rgb(43 33 21 / 0.28);
         animation: sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
     }
 
@@ -810,7 +854,7 @@ html.scroll-locked {
 
 @media (hover: hover) {
     .event-card:hover {
-        border-color: var(--border-strong);
+        border-color: var(--accent-soft-border);
         box-shadow: var(--shadow-card-hover);
         transform: translateY(-3px);
     }
@@ -864,12 +908,12 @@ html.scroll-locked {
     font-weight: 600;
     padding: 0.1875rem 0.625rem;
     border-radius: 9999px;
-    background: rgba(255, 253, 249, 0.92);
-    color: #9a4c16;
+    background: rgba(255, 252, 246, 0.93);
+    color: var(--accent-strong);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     line-height: 1.4;
-    box-shadow: 0 1px 3px rgb(28 25 23 / 0.12);
+    box-shadow: 0 1px 3px rgb(43 33 21 / 0.15);
 }
 
 .event-card-body {
@@ -881,7 +925,7 @@ html.scroll-locked {
 }
 
 .event-card-title {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text-strong);
     letter-spacing: -0.01em;
@@ -905,7 +949,7 @@ html.scroll-locked {
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--text-secondary);
 }
 
@@ -1017,17 +1061,18 @@ html.scroll-locked {
 }
 
 .detail-title {
-    font-size: 1.4375rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
     color: var(--text-strong);
-    line-height: 1.25;
+    line-height: 1.2;
     margin: 0 0 1.25rem;
 }
 
 @media (min-width: 768px) {
     .detail-title {
-        font-size: 1.875rem;
+        font-size: 2.375rem;
     }
 }
 
@@ -1042,7 +1087,7 @@ html.scroll-locked {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: var(--text);
 }
 
@@ -1065,7 +1110,7 @@ html.scroll-locked {
 }
 
 .detail-description {
-    font-size: 0.9375rem;
+    font-size: 1.0625rem;
     line-height: 1.75;
     color: var(--text);
     white-space: pre-line;
@@ -1077,20 +1122,20 @@ html.scroll-locked {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background: var(--accent);
-    color: #fff;
+    background: linear-gradient(135deg, #f2a954, #e58e3a 55%, #d96b28);
+    color: var(--cta-text);
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: 700;
     padding: 0.75rem 1.5rem;
     border-radius: 9999px;
     text-decoration: none;
-    box-shadow: 0 2px 8px rgb(194 87 31 / 0.3);
-    transition: background 150ms, transform 150ms, box-shadow 150ms;
+    box-shadow: 0 2px 12px rgba(217, 107, 40, 0.35);
+    transition: filter 150ms, transform 150ms, box-shadow 150ms;
 }
 
 .detail-cta:hover {
-    background: var(--accent-strong);
-    box-shadow: 0 4px 14px rgb(194 87 31 / 0.35);
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px rgba(217, 107, 40, 0.45);
     transform: translateY(-1px);
 }
 
@@ -1117,9 +1162,10 @@ html.scroll-locked {
 }
 
 .similar-heading {
-    font-size: 1.0625rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    font-weight: 400;
+    letter-spacing: 0;
     color: var(--text-strong);
     margin: 0 0 1rem;
 }
@@ -1151,7 +1197,7 @@ html.scroll-locked {
 
 @media (hover: hover) {
     .similar-card:hover {
-        border-color: var(--border-strong);
+        border-color: var(--accent-soft-border);
         box-shadow: var(--shadow-card-hover);
         transform: translateY(-3px);
     }
@@ -1211,7 +1257,7 @@ html.scroll-locked {
 }
 
 .similar-card-title {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-strong);
     margin: 0;
@@ -1226,7 +1272,7 @@ html.scroll-locked {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
 }
 
