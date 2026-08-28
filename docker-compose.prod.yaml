@@ -24,6 +24,8 @@ services:
     environment:
       # Overrides the localhost value in .env — inside compose, postgres is a hostname.
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    volumes:
+      - img_cache:/data/img-cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,3 +56,4 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  img_cache:
