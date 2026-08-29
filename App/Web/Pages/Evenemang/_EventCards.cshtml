@@ -8,7 +8,7 @@
    the count already exists in the sticky filter bar and would duplicate. *@
 @if (Context.Request.Headers.ContainsKey("HX-Request"))
 {
-    <p id="event-count" class="fb-count" hx-swap-oob="true">@Model.Events.Count evenemang</p>
+    <p id="event-count" class="fb-count" hx-swap-oob="true">@Model.Events.Count<span class="fb-count-label"> evenemang</span></p>
 }
 
 <div class="events-grid" id="events-grid" data-take="@Model.Take">
