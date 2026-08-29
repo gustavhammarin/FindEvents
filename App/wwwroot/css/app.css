@@ -156,6 +156,17 @@ html.scroll-locked {
     height: 57px;
     display: flex;
     align-items: center;
+    transition: transform 0.25s ease;
+}
+
+@media (max-width: 639px) {
+    body.header-hidden .site-header {
+        transform: translateY(-100%);
+    }
+
+    body.header-hidden .sticky-filters {
+        transform: translateY(-57px);
+    }
 }
 
 /* Glödlinjen — the smoldering ember under the header. */
@@ -201,6 +212,7 @@ html.scroll-locked {
     z-index: 30;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
+    transition: transform 0.25s ease;
 }
 
 .sticky-filters .site-container {
@@ -295,7 +307,9 @@ html.scroll-locked {
 .fb-count {
     font-size: 0.8125rem;
     color: var(--text-muted);
-    margin: 0.5rem 0 0;
+    margin: 0 0.75rem 0 auto;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* Mobile: search gets its own pill, filters become a chip row below */
@@ -360,6 +374,11 @@ html.scroll-locked {
         background: var(--surface);
         border: 1px solid var(--border);
         box-shadow: var(--shadow-card);
+    }
+
+    .fb-count {
+        margin: 0 0 0 auto;
+        align-self: center;
     }
 }
 
