@@ -33,7 +33,7 @@ public class ImageCacheService(IHttpClientFactory httpFactory, IOptions<ImageCac
         {
             var client = httpFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(10);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; FindEvents/1.0)");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; HittaEvenemang/1.0)");
 
             using var resp = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!resp.IsSuccessStatusCode || resp.Content.Headers.ContentLength > MaxBytes)

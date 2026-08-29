@@ -156,16 +156,11 @@ html.scroll-locked {
     height: 57px;
     display: flex;
     align-items: center;
-    transition: transform 0.25s ease;
 }
 
 @media (max-width: 639px) {
-    body.header-hidden .site-header {
-        transform: translateY(-100%);
-    }
-
-    body.header-hidden .sticky-filters {
-        transform: translateY(-57px);
+    .site-header {
+        display: none;
     }
 }
 
@@ -212,7 +207,12 @@ html.scroll-locked {
     z-index: 30;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    transition: transform 0.25s ease;
+}
+
+@media (max-width: 639px) {
+    .sticky-filters {
+        top: 0;
+    }
 }
 
 .sticky-filters .site-container {

@@ -106,7 +106,7 @@ public class DetailModel(EventService eventService) : PageModel
         sb.Append(",\"eventStatus\":\"https://schema.org/EventScheduled\"");
         sb.Append(",\"eventAttendanceMode\":\"https://schema.org/OfflineEventAttendanceMode\"");
         if (!string.IsNullOrEmpty(Event.Category)) sb.Append($",\"keywords\":\"{JsonEscape(Event.Category)}\"");
-        sb.Append(",\"organizer\":{\"@type\":\"Organization\",\"name\":\"FindEvents\",\"url\":\"https://findevents.se\"}");
+        sb.Append(",\"organizer\":{\"@type\":\"Organization\",\"name\":\"Hitta Evenemang\",\"url\":\"https://hittaevenemang.se\"}");
         sb.Append('}');
         return sb.ToString();
     }

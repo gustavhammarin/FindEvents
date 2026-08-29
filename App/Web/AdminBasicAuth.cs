@@ -32,7 +32,7 @@ public static class AdminBasicAuth
             }
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            context.Response.Headers.WWWAuthenticate = "Basic realm=\"FindEvents admin\", charset=\"UTF-8\"";
+            context.Response.Headers.WWWAuthenticate = "Basic realm=\"Hitta Evenemang admin\", charset=\"UTF-8\"";
         });
     }
 
