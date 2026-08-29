@@ -485,6 +485,33 @@
         }
     }
 
+    // ─── Header hide-on-scroll (mobile) ───────────────────────────────────────
+
+    function initHeaderAutoHide() {
+        var header = document.querySelector('.site-header');
+        if (!header) return;
+        var lastY = window.scrollY;
+        var ticking = false;
+
+        function onScroll() {
+            var y = window.scrollY;
+            if (y > lastY && y > header.offsetHeight) {
+                document.body.classList.add('header-hidden');
+            } else if (y < lastY) {
+                document.body.classList.remove('header-hidden');
+            }
+            lastY = y;
+            ticking = false;
+        }
+
+        window.addEventListener('scroll', function () {
+            if (!ticking) {
+                requestAnimationFrame(onScroll);
+                ticking = true;
+            }
+        }, { passive: true });
+    }
+
     // ─── Init ──────────────────────────────────────────────────────────────────
 
     function init() {
@@ -493,6 +520,7 @@
         initClearButton();
         initListStateTracking();
         initBackToList();
+        initHeaderAutoHide();
         restoreScroll();
 
         document.addEventListener('htmx:afterSettle', function (evt) {
