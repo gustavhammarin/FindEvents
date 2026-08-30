@@ -20,9 +20,6 @@ public class HttpLoader : IHttpLoader
     {
         _client = client;
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-        _client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        _client.DefaultRequestHeaders.Add("Referer", "https://jkpg.com/evenemang");
-        _client.DefaultRequestHeaders.Add("Origin", "https://jkpg.com");
     }
 
     public async Task<XDocument> LoadXmlAsync(string url, bool isGz)
