@@ -1,6 +1,7 @@
 using App.Embedder;
 using App.Persistence;
 using App.Scraper.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +15,7 @@ public class ScraperHostedService : BackgroundService
     private readonly EventEmbeddingService _backfill;
     private readonly ILogger<ScraperHostedService> _logger;
     private readonly bool _enabled;
-    private readonly TimeSpan _runInterval = TimeSpan.FromHours(24);
+    private readonly TimeSpan _runInterval;
 
     public ScraperHostedService(
         IServiceProvider serviceProvider,
@@ -26,6 +27,7 @@ public class ScraperHostedService : BackgroundService
         _backfill = backfill;
         _logger = logger;
         _enabled = configuration.GetValue("Scraper:Enabled", true);
+        _runInterval = TimeSpan.FromHours(configuration.GetValue("Scraper:IntervalHours", 48));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,12 +41,46 @@ public class ScraperHostedService : BackgroundService
             return;
         }
 
+        // On restart, don't re-scrape immediately if the last run is still within the interval —
+        // avoids burning LLM API calls on every deploy/restart.
+        var initialDelay = await GetInitialDelayAsync(stoppingToken);
+        if (initialDelay > TimeSpan.Zero)
+        {
+            _logger.LogInformation("Last scrape run still fresh — delaying next run by {Delay}", initialDelay);
+            try { await Task.Delay(initialDelay, stoppingToken); }
+            catch (OperationCanceledException) { return; }
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             await RunScrapeAsync(stoppingToken);
 
             try { await Task.Delay(_runInterval, stoppingToken); }
             catch (OperationCanceledException) { break; }
+        }
+    }
+
+    private async Task<TimeSpan> GetInitialDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var lastRun = await db.ScrapeRuns
+                .Where(r => r.Trigger == "scheduled" && r.FinishedAtUtc != null)
+                .OrderByDescending(r => r.StartedAtUtc)
+                .FirstOrDefaultAsync(ct);
+
+            if (lastRun is null) return TimeSpan.Zero;
+
+            var elapsed = DateTime.UtcNow - lastRun.StartedAtUtc;
+            var remaining = _runInterval - elapsed;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Could not determine last scrape run time — running immediately");
+            return TimeSpan.Zero;
         }
     }
 
