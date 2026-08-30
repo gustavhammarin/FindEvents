@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using App.Repositories;
 using App.Scraper.Interfaces;
 using App.Scraper.Models;
@@ -17,6 +18,16 @@ public abstract class LlmHtmlSource : IEventSource
     private readonly ILlmExtractor _llm;
     private readonly IEventRepository _repository;
     private readonly ILogger _logger;
+
+    // Cheap pre-filter: skip the LLM call when the page has no date-like text at all
+    // (permanent attraction/POI pages on sitemap-based sources never gain one, so
+    // this avoids re-burning LLM quota on the same non-events every run).
+    private static readonly Regex DateLikePattern = new(
+        @"\b\d{1,2}\s*(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\b" +
+        @"|\b\d{4}-\d{1,2}-\d{1,2}\b" +
+        @"|\b\d{1,2}/\d{1,2}\b" +
+        @"|\b(måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag)[a-zäö]*\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public abstract string Name { get; }
     protected abstract string Municipality { get; }
@@ -66,6 +77,12 @@ public abstract class LlmHtmlSource : IEventSource
                     text.Contains("Aktiviteten är avslutad", StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogDebug("{Source}: skipping finished event {Url}", Name, url);
+                    continue;
+                }
+
+                if (!DateLikePattern.IsMatch(text))
+                {
+                    _logger.LogDebug("{Source}: no date-like text, skipping LLM call for {Url}", Name, url);
                     continue;
                 }
 

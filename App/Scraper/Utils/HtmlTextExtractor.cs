@@ -8,8 +8,9 @@ public static class HtmlTextExtractor
 
     public static string Extract(HtmlDocument doc)
     {
+        var root = doc.DocumentNode.SelectSingleNode("//main") ?? doc.DocumentNode;
         var sb = new System.Text.StringBuilder();
-        WalkNode(doc.DocumentNode, sb);
+        WalkNode(root, sb);
         return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\s{2,}", " ").Trim();
     }
 
