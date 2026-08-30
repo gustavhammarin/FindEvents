@@ -54,8 +54,8 @@ builder.Services.AddRazorPages(options => options.RootDirectory = "/Web/Pages");
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-app.UseStaticFiles();
 app.UseAdminBasicAuth(app.Configuration["Admin:Password"]);
+app.UseStaticFiles();
 
 app.MapFindEventsEndpoints();
 
